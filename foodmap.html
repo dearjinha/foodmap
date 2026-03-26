@@ -393,7 +393,7 @@ function getAvgStars(placeId, baseStars) {
   // 등록자 별점(baseStars) 1표 + 추가 평가들
   const allScores = [baseStars, ...list.map(r=>r.score)];
   const total = allScores.reduce((s,v) => s+v, 0);
-  return { avg: total / allScores.length, count: list.length };
+  return { avg: total / allScores.length, count: list.length + 1 };
 }
 function getMyRating(placeId) {
   const list = ratings[placeId] || [];
