@@ -5,6 +5,7 @@
  *   NOTION_TOKEN          = secret_xxxx
  *   NOTION_DB_ID          = 맛집 DB ID (32자리)
  *   NOTION_COMMENTS_DB_ID = 댓글 DB ID (32자리)
+ *   NOTION_RATINGS_DB_ID  = 별점 DB ID (32자리)
  *   KAKAO_REST_KEY        = 카카오 REST API 키
  *   ALLOWED_ORIGIN        = https://infludeo-foodmap.netlify.app
  *
@@ -46,6 +47,10 @@ exports.handler = async (event) => {
     else if (path==='comments' && method==='GET')    result = await getComments(q.placeId);
     else if (path==='comments' && method==='POST')   result = await addComment(JSON.parse(event.body||'{}'));
     else if (path==='comments' && method==='DELETE') result = await deleteComment(q.id);
+    // ── 별점 ──
+    else if (path==='ratings' && method==='GET')    result = await getRatings(q.placeId);
+    else if (path==='ratings' && method==='POST')   result = await addRating(JSON.parse(event.body||'{}'));
+    else if (path==='ratings' && method==='DELETE') result = await deleteRating(q.id);
     // ── 검색/geocode (카카오) ──
     else if (path==='search')  result = await kakaoSearch(q.q);
     else if (path==='geocode') result = await kakaoGeocode(q.q);
@@ -140,6 +145,51 @@ function toComment(page) {
   return { id:page.id, placeId:txt(p.PlaceId), nick:txt(p.Nick), text:txt(p.Text), date:txt(p.CreatedAt) };
 }
 
+// ── 별점 CRUD ─────────────────────────────────────────────
+async function getRatings(placeId) {
+  if(!placeId) return [];
+  const r = await nFetch(`/databases/${ratingsDbId()}/query`,'POST',{
+    filter:{property:'PlaceId',title:{equals:placeId}},
+    page_size:100,
+  });
+  const d = await r.json();
+  if(!r.ok) return [];
+  return (d.results||[]).map(toRating);
+}
+
+async function addRating(body) {
+  // 같은 PlaceId + Nick이 있으면 먼저 삭제 (1인 1표)
+  const existing = await getRatings(body.placeId);
+  const mine = existing.find(r => r.nick === body.nick);
+  if(mine) await deleteRating(mine.id);
+
+  const r = await nFetch('/pages','POST',{
+    parent:{database_id:ratingsDbId()},
+    properties:{
+      PlaceId: {title:    [{text:{content:body.placeId||''}}]},
+      Nick:    {rich_text:[{text:{content:body.nick||''}}]},
+      Score:   {number:   Number(body.score)||0},
+    },
+  });
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.message||JSON.stringify(d));
+  return toRating(d);
+}
+
+async function deleteRating(pageId) {
+  if(!pageId) throw new Error('id required');
+  const r = await nFetch(`/pages/${pageId}`,'PATCH',{archived:true});
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.message||JSON.stringify(d));
+  return {success:true};
+}
+
+function toRating(page) {
+  const p = page.properties||{};
+  const txt = prop => prop?.rich_text?.[0]?.plain_text||prop?.title?.[0]?.plain_text||'';
+  return { id:page.id, placeId:txt(p.PlaceId), nick:txt(p.Nick), score:p.Score?.number||0 };
+}
+
 // ── 카카오 키워드 검색 ────────────────────────────────────
 async function kakaoSearch(q) {
   if(!q) return [];
@@ -184,6 +234,7 @@ async function geocodeRaw(addr) {
 const token        = () => process.env.NOTION_TOKEN;
 const dbId         = () => process.env.NOTION_DB_ID;
 const commentsDbId = () => process.env.NOTION_COMMENTS_DB_ID;
+const ratingsDbId  = () => process.env.NOTION_RATINGS_DB_ID;
 const kakaoKey     = () => process.env.KAKAO_REST_KEY;
 
 function nFetch(endpoint, method, body) {
