@@ -126,6 +126,8 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .dp-delete { margin-top:12px; width:100%; padding:8px; background:rgba(255,80,80,.1); border:1px solid rgba(255,80,80,.2); border-radius:var(--radius-sm); color:#ff6060; font-size:12px; cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all .15s; }
 .dp-delete:hover { background:rgba(255,80,80,.2); }
 .dp-delete:disabled { opacity:.4; cursor:not-allowed; }
+.dp-edit { flex:1; padding:8px; background:rgba(63,131,248,.1); border:1px solid rgba(63,131,248,.2); border-radius:var(--radius-sm); color:#4fa3f7; font-size:12px; cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all .15s; }
+.dp-edit:hover { background:rgba(63,131,248,.2); }
 
 /* ── MODAL ── */
 #modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1000; align-items:center; justify-content:center; }
@@ -245,7 +247,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 <!-- 등록 모달 -->
 <div id="modal-overlay">
   <div id="modal">
-    <div class="modal-title">🍽️ 맛집 등록</div>
+    <div class="modal-title" id="modal-title">🍽️ 맛집 등록</div>
 
     <div class="form-group">
       <label class="form-label">음식점 이름 *</label>
@@ -314,12 +316,11 @@ const HQ = { lat: 37.5158, lng: 126.9038 };
 
 // 기본 추천 맛집 (DB가 비어있을 때 1회 삽입)
 const SEEDS = [
-  { name:'영등포 족발보쌈',      addr:'서울 영등포구 영중로 15',    addrDetail:'타임스퀘어 인근',    cat:'한식', stars:5, review:'족발 부드럽고 양 많음! 회식 강추',          nick:'맛집봇', lat:37.5162, lng:126.9051, isSeeded:true },
-  { name:'하카타분코 영등포점',   addr:'서울 영등포구 경인로 846',   addrDetail:'타임스퀘어 지하1층', cat:'일식', stars:4, review:'돈코츠 라멘 진함, 점심 줄 서야 함',         nick:'맛집봇', lat:37.5155, lng:126.9026, isSeeded:true },
-  { name:'춘천닭갈비 영등포',     addr:'서울 영등포구 영중로 15',    addrDetail:'근처 골목',          cat:'한식', stars:4, review:'볶음밥 추가 필수! 2인 이상 방문 추천',       nick:'맛집봇', lat:37.5170, lng:126.9044, isSeeded:true },
-  { name:'이디야커피 타임스퀘어', addr:'서울 영등포구 경인로 846',   addrDetail:'1층',                cat:'카페', stars:3, review:'회의 전후 커피 한 잔 하기 딱 좋음',          nick:'맛집봇', lat:37.5152, lng:126.9035, isSeeded:true },
-  { name:'신영등포 국밥거리',     addr:'서울 영등포구 영중로 15',    addrDetail:'시장 내부',          cat:'한식', stars:5, review:'해장국 맛있어요. 아침 일찍 가야 자리 있음',   nick:'맛집봇', lat:37.5148, lng:126.9058, isSeeded:true },
-  { name:'홍콩반점0410 영등포',   addr:'서울 영등포구 영등포로 135', addrDetail:'',                   cat:'중식', stars:4, review:'짬뽕 국물 진함. 빠른 점심 한 끼 해결',        nick:'맛집봇', lat:37.5166, lng:126.9018, isSeeded:true },
+  { name:'담솥',        addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어 3층 305-1호', cat:'한식', stars:4,   review:'다양한 솥밥과 따뜻한 누룽지 한상',          nick:'맛집봇', lat:37.5159, lng:126.9040, isSeeded:true },
+  { name:'차알',        addr:'서울 영등포구 영중로 15', addrDetail:'1층 101호',              cat:'중식', stars:3,   review:'넓고 깔끔한 공간에서 즐기는 퓨전 중식',     nick:'맛집봇', lat:37.5157, lng:126.9037, isSeeded:true },
+  { name:'홍수계찜닭',  addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어',             cat:'한식', stars:3,   review:'쫄깃한 당면과 깊은 간장 양념의 찜닭',       nick:'맛집봇', lat:37.5161, lng:126.9042, isSeeded:true },
+  { name:'마마된장',    addr:'서울 영등포구 영중로 15', addrDetail:'지하1층 B148호',         cat:'한식', stars:2.5, review:'집밥처럼 편안한 깊은 된장 맛',               nick:'맛집봇', lat:37.5155, lng:126.9035, isSeeded:true },
+  { name:'타임스퀘어 구내식당', addr:'서울 영등포구 영중로 15', addrDetail:'지하2층',        cat:'한식', stars:3,   review:'구내식당',                                  nick:'맛집봇', lat:37.5153, lng:126.9038, isSeeded:true },
 ];
 
 const CAT_COLORS = { '한식':'#e85d3c','중식':'#e8a03c','일식':'#3c8ee8','양식':'#7c5ce8','카페':'#5cb85c','기타':'#888' };
@@ -331,17 +332,19 @@ let selId    = null;
 let curFilter = '전체';
 let curStar  = 0;
 let pendingCoord = null;
+let editingId = null;
 let map      = null;
 let markers  = {};
 let pollTimer = null;
 
 // ── API 헬퍼 ──────────────────────────────────────────
 const api = {
-  get:    ()     => fetch(`${API}?path=places`).then(r=>r.json()),
-  post:   body   => fetch(`${API}?path=places`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()),
-  del:    id     => fetch(`${API}?path=places&id=${id}`, { method:'DELETE' }).then(r=>r.json()),
-  search: q      => fetch(`${API}?path=search&q=${encodeURIComponent(q)}`).then(r=>r.json()),
-  geocode:q      => fetch(`${API}?path=geocode&q=${encodeURIComponent(q)}`).then(r=>r.json()),
+  get:    ()         => fetch(`${API}?path=places`).then(r=>r.json()),
+  post:   body       => fetch(`${API}?path=places`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()),
+  patch:  (id, body) => fetch(`${API}?path=places&id=${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()),
+  del:    id         => fetch(`${API}?path=places&id=${id}`, { method:'DELETE' }).then(r=>r.json()),
+  search: q          => fetch(`${API}?path=search&q=${encodeURIComponent(q)}`).then(r=>r.json()),
+  geocode:q          => fetch(`${API}?path=geocode&q=${encodeURIComponent(q)}`).then(r=>r.json()),
 };
 
 // ── 닉네임 ────────────────────────────────────────────
@@ -523,15 +526,20 @@ function selectPlace(id) {
 }
 
 function showDetail(p) {
+  const isMine = p.nick === myNick && !p.isSeeded;
   document.getElementById('dp-content').innerHTML = `
     <span class="dp-cat-badge cat-${p.cat}">${p.cat}</span>
     <div class="dp-name">${p.name}</div>
     <div class="dp-address">📍 ${p.addr}${p.addrDetail?' · '+p.addrDetail:''}</div>
-    <div class="dp-stars">${'★'.repeat(p.stars||0)}${'☆'.repeat(5-(p.stars||0))}</div>
+    <div class="dp-stars">${'★'.repeat(Math.floor(p.stars||0))}${'☆'.repeat(5-Math.floor(p.stars||0))}</div>
     <div class="dp-nick">등록: <strong>@${p.nick}</strong>${p.isSeeded?' <span style="font-size:10px;color:var(--text3)">· 기본 추천</span>':''}</div>
     ${p.review?`<div class="dp-review">"${p.review}"</div>`:''}
     <div style="font-size:11px;color:var(--text3);margin-top:8px;">${p.createdAt||''}</div>
-    ${(p.nick===myNick&&!p.isSeeded)?`<button class="dp-delete" id="del-btn" onclick="deletePlace('${p.id}')">🗑 내가 등록한 맛집 삭제</button>`:''}`;
+    ${isMine?`
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="dp-edit" onclick="openEditModal('${p.id}')">✏️ 수정</button>
+      <button class="dp-delete" id="del-btn" onclick="deletePlace('${p.id}')">🗑 삭제</button>
+    </div>`:''}`;
   document.getElementById('detail-panel').classList.add('show');
 }
 
@@ -557,15 +565,43 @@ async function deletePlace(id) {
 
 // ── 모달 ──────────────────────────────────────────────
 function openModal() {
+  editingId = null;
   ['f-name','f-addr','f-addr-detail','f-review'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-cat').value='';
   document.getElementById('f-nick').value=myNick;
   document.getElementById('hint-nick').textContent=myNick;
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').textContent='등록하기';
+  document.getElementById('modal-title').textContent='🍽️ 맛집 등록';
   document.getElementById('search-results').classList.remove('open');
   document.getElementById('coord-preview').classList.remove('show');
   curStar=0; pendingCoord=null; updateStars();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEditModal(id) {
+  const p = places.find(x=>x.id===id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('f-name').value = p.name;
+  document.getElementById('f-addr').value = p.addr;
+  document.getElementById('f-addr-detail').value = p.addrDetail || '';
+  document.getElementById('f-cat').value = p.cat;
+  document.getElementById('f-review').value = p.review || '';
+  document.getElementById('f-nick').value = p.nick;
+  document.getElementById('hint-nick').textContent = p.nick;
+  document.getElementById('submit-btn').disabled=false;
+  document.getElementById('submit-btn').textContent='수정 완료';
+  document.getElementById('modal-title').textContent='✏️ 맛집 수정';
+  document.getElementById('search-results').classList.remove('open');
+  document.getElementById('coord-preview').classList.remove('show');
+  pendingCoord = p.lat ? { lat: p.lat, lng: p.lng } : null;
+  if (pendingCoord) {
+    const prev = document.getElementById('coord-preview');
+    prev.textContent = `📍 현재 좌표 (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
+    prev.classList.add('show');
+  }
+  curStar = p.stars || 3; updateStars();
   document.getElementById('modal-overlay').classList.add('open');
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
@@ -574,17 +610,29 @@ function updateStars() {
   document.querySelectorAll('.star-btn').forEach((s,i)=>s.classList.toggle('lit',i<curStar));
 }
 
-// 주소 검색 (Netlify Function → Nominatim 무료 geocoding)
+// 주소/음식점명 검색 (Nominatim) — 검색 없이 주소 직접 입력도 가능
 async function searchAddr() {
   const q = document.getElementById('f-addr').value.trim();
   if (!q) { showToast('⚠️ 주소나 음식점명을 입력하세요'); return; }
   const resultsEl = document.getElementById('search-results');
-  resultsEl.innerHTML = '<div class="search-result-item">검색 중...</div>';
+  resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--color-text-tertiary)">검색 중...</div>';
   resultsEl.classList.add('open');
   try {
-    const results = await api.search(q);
-    if (!results || results.length===0) {
-      resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--text3)">검색 결과가 없어요. 더 구체적으로 입력해보세요.</div>';
+    // 키워드+주소 동시 검색 후 합치기
+    const [bySearch, byGeo] = await Promise.all([
+      api.search(q).catch(()=>[]),
+      api.geocode(q).catch(()=>({ok:false})),
+    ]);
+    const results = [...(bySearch||[])];
+    // geocode 결과가 search에 없으면 추가
+    if (byGeo?.ok && !results.find(r=>Math.abs(r.lat-byGeo.lat)<0.001)) {
+      results.push({ name: byGeo.name, addr: byGeo.addr, lat: byGeo.lat, lng: byGeo.lng });
+    }
+    if (!results.length) {
+      resultsEl.innerHTML = `<div class="search-result-item" style="color:var(--text3)">
+        검색 결과가 없어요.<br>
+        <span style="font-size:11px">주소를 직접 입력하고 검색 없이 등록하셔도 됩니다.</span>
+      </div>`;
       return;
     }
     resultsEl.innerHTML = results.map((r,i)=>`
@@ -599,11 +647,11 @@ async function searchAddr() {
 function pickAddr(i) {
   const r = document.getElementById('search-results')._data[i];
   document.getElementById('f-addr').value = r.addr;
-  document.getElementById('f-name').value = document.getElementById('f-name').value || r.name;
+  if (!document.getElementById('f-name').value) document.getElementById('f-name').value = r.name;
   pendingCoord = { lat: r.lat, lng: r.lng };
   document.getElementById('search-results').classList.remove('open');
   const prev = document.getElementById('coord-preview');
-  prev.textContent = `📍 좌표 확인됨 (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)})`;
+  prev.textContent = `📍 위치 확인됨: ${r.name}`;
   prev.classList.add('show');
   if (map) map.panTo([r.lat, r.lng]);
   showToast('✅ 위치 선택됨: ' + r.name);
@@ -614,11 +662,11 @@ async function submitPlace() {
   const addr = document.getElementById('f-addr').value.trim();
   const cat  = document.getElementById('f-cat').value;
   if (!name) { showToast('⚠️ 음식점 이름을 입력해주세요'); return; }
-  if (!addr)  { showToast('⚠️ 주소를 검색해주세요'); return; }
+  if (!addr)  { showToast('⚠️ 주소를 입력해주세요'); return; }
   if (!cat)   { showToast('⚠️ 카테고리를 선택해주세요'); return; }
 
   const btn = document.getElementById('submit-btn');
-  btn.disabled=true; btn.textContent='등록 중...';
+  btn.disabled=true; btn.textContent= editingId ? '수정 중...' : '등록 중...';
 
   const body = {
     name, addr,
@@ -632,15 +680,20 @@ async function submitPlace() {
   };
 
   try {
-    await api.post(body);
+    if (editingId) {
+      await api.patch(editingId, body);
+      showToast('✅ 수정됐어요!');
+    } else {
+      await api.post(body);
+      showToast('✅ 노션 DB에 저장됐어요!');
+    }
     const d = await api.get();
     places = Array.isArray(d) ? d.map(normalize) : places;
     closeModal();
     renderAll();
-    showToast('✅ 노션 DB에 저장됐어요!');
   } catch(e) {
-    showToast('등록 실패: '+e.message);
-    btn.disabled=false; btn.textContent='등록하기';
+    showToast((editingId?'수정':'등록') + ' 실패: '+e.message);
+    btn.disabled=false; btn.textContent= editingId ? '수정 완료' : '등록하기';
   }
 }
 
