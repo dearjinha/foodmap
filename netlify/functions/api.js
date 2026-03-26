@@ -5,14 +5,21 @@
  *   NOTION_TOKEN          = secret_xxxx
  *   NOTION_DB_ID          = 맛집 DB ID (32자리)
  *   NOTION_COMMENTS_DB_ID = 댓글 DB ID (32자리)
+ *   KAKAO_REST_KEY        = 카카오 REST API 키
  *   ALLOWED_ORIGIN        = https://infludeo-foodmap.netlify.app
+ *
+ * 맛집 노션 DB 컬럼:
+ *   Name(제목), Addr(텍스트), AddrDetail(텍스트), Cat(선택),
+ *   Stars(숫자), Review(텍스트), Nick(텍스트),
+ *   Lat(숫자), Lng(숫자), CreatedAt(텍스트), IsSeeded(체크박스),
+ *   MapUrl(텍스트)  ← 카카오맵 링크
  *
  * 댓글 노션 DB 컬럼:
  *   PlaceId(제목), Nick(텍스트), Text(텍스트), CreatedAt(텍스트)
  */
 
 const NOTION    = 'https://api.notion.com/v1';
-const NOMINATIM = 'https://nominatim.openstreetmap.org';
+const KAKAO_API = 'https://dapi.kakao.com/v2/local';
 
 exports.handler = async (event) => {
   const origin  = event.headers.origin || event.headers.Origin || '';
@@ -39,9 +46,9 @@ exports.handler = async (event) => {
     else if (path==='comments' && method==='GET')    result = await getComments(q.placeId);
     else if (path==='comments' && method==='POST')   result = await addComment(JSON.parse(event.body||'{}'));
     else if (path==='comments' && method==='DELETE') result = await deleteComment(q.id);
-    // ── 검색 ──
-    else if (path==='search')  result = await search(q.q);
-    else if (path==='geocode') result = await geocode(q.q);
+    // ── 검색/geocode (카카오) ──
+    else if (path==='search')  result = await kakaoSearch(q.q);
+    else if (path==='geocode') result = await kakaoGeocode(q.q);
     else return res(404, {error:'Not found'}, cors);
     return res(200, result, cors);
   } catch(e) {
@@ -61,9 +68,10 @@ async function getPlaces() {
 }
 
 async function addPlace(body) {
-  if((!body.lat||!body.lng)&&body.addr){
+  // 좌표 없으면 카카오로 geocode
+  if((!body.lat||!body.lng) && body.addr) {
     const geo = await geocodeRaw(body.addr);
-    if(geo){body.lat=geo.lat;body.lng=geo.lng;}
+    if(geo) { body.lat=geo.lat; body.lng=geo.lng; }
   }
   const r = await nFetch('/pages','POST',{
     parent:{database_id:dbId()},
@@ -132,53 +140,84 @@ function toComment(page) {
   return { id:page.id, placeId:txt(p.PlaceId), nick:txt(p.Nick), text:txt(p.Text), date:txt(p.CreatedAt) };
 }
 
-// ── Nominatim ────────────────────────────────────────────
-async function search(q) {
+// ── 카카오 키워드 검색 ────────────────────────────────────
+async function kakaoSearch(q) {
   if(!q) return [];
-  const url=`${NOMINATIM}/search?q=${enc(q)}&format=json&limit=6&accept-language=ko&countrycodes=kr`;
-  const r = await fetch(url,{headers:{'User-Agent':'FoodmapInternal/1.0'}});
+  const r = await fetch(
+    `${KAKAO_API}/search/keyword.json?query=${enc(q)}&size=7`,
+    { headers:{ Authorization:`KakaoAK ${kakaoKey()}` } }
+  );
   const d = await r.json();
-  return (d||[]).map(item=>({
-    name:item.display_name.split(',')[0].trim(),
-    addr:item.display_name,
-    lat:parseFloat(item.lat),
-    lng:parseFloat(item.lon),
+  return (d.documents||[]).map(doc => ({
+    name: doc.place_name,
+    addr: doc.road_address_name || doc.address_name,
+    lat:  parseFloat(doc.y),
+    lng:  parseFloat(doc.x),
+    mapUrl: doc.place_url,  // 카카오맵 장소 URL 자동 포함
   }));
 }
-async function geocode(q) {
+
+// ── 카카오 주소→좌표 ──────────────────────────────────────
+async function kakaoGeocode(q) {
   if(!q) return {ok:false};
   const data = await geocodeRaw(q);
-  return data?{ok:true,...data}:{ok:false};
+  return data ? {ok:true,...data} : {ok:false};
 }
-async function geocodeRaw(q) {
-  const url=`${NOMINATIM}/search?q=${enc(q)}&format=json&limit=1&accept-language=ko`;
-  const r = await fetch(url,{headers:{'User-Agent':'FoodmapInternal/1.0'}});
+
+async function geocodeRaw(addr) {
+  const r = await fetch(
+    `${KAKAO_API}/search/address.json?query=${enc(addr)}`,
+    { headers:{ Authorization:`KakaoAK ${kakaoKey()}` } }
+  );
   const d = await r.json();
-  if(!d?.[0]) return null;
-  return {lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon),name:d[0].display_name.split(',')[0].trim(),addr:d[0].display_name};
+  const doc = d.documents?.[0];
+  if(!doc) return null;
+  return {
+    lat:  parseFloat(doc.y),
+    lng:  parseFloat(doc.x),
+    name: doc.address_name,
+    addr: doc.address?.road_address?.address_name || doc.address_name,
+  };
 }
 
 // ── Notion helpers ────────────────────────────────────────
-const token       = () => process.env.NOTION_TOKEN;
-const dbId        = () => process.env.NOTION_DB_ID;
-const commentsDbId= () => process.env.NOTION_COMMENTS_DB_ID;
+const token        = () => process.env.NOTION_TOKEN;
+const dbId         = () => process.env.NOTION_DB_ID;
+const commentsDbId = () => process.env.NOTION_COMMENTS_DB_ID;
+const kakaoKey     = () => process.env.KAKAO_REST_KEY;
 
 function nFetch(endpoint, method, body) {
-  return fetch(`${NOTION}${endpoint}`,{
+  return fetch(`${NOTION}${endpoint}`, {
     method,
-    headers:{Authorization:`Bearer ${token()}`,'Notion-Version':'2022-06-28','Content-Type':'application/json'},
+    headers:{
+      Authorization:`Bearer ${token()}`,
+      'Notion-Version':'2022-06-28',
+      'Content-Type':'application/json',
+    },
     body:JSON.stringify(body),
   });
 }
 
 function toPlace(page) {
-  const p=page.properties||{};
-  const txt=prop=>prop?.rich_text?.[0]?.plain_text||prop?.title?.[0]?.plain_text||'';
-  const num=prop=>prop?.number??0;
-  const sel=prop=>prop?.select?.name||'';
-  return {id:page.id,name:txt(p.Name),addr:txt(p.Addr),addrDetail:txt(p.AddrDetail),
-    cat:sel(p.Cat),stars:num(p.Stars),review:txt(p.Review),nick:txt(p.Nick),
-    lat:num(p.Lat),lng:num(p.Lng),createdAt:txt(p.CreatedAt),isSeeded:p.IsSeeded?.checkbox??false};
+  const p   = page.properties||{};
+  const txt = prop => prop?.rich_text?.[0]?.plain_text||prop?.title?.[0]?.plain_text||'';
+  const num = prop => prop?.number??0;
+  const sel = prop => prop?.select?.name||'';
+  return {
+    id:         page.id,
+    name:       txt(p.Name),
+    addr:       txt(p.Addr),
+    addrDetail: txt(p.AddrDetail),
+    cat:        sel(p.Cat),
+    stars:      num(p.Stars),
+    review:     txt(p.Review),
+    nick:       txt(p.Nick),
+    lat:        num(p.Lat),
+    lng:        num(p.Lng),
+    createdAt:  txt(p.CreatedAt),
+    isSeeded:   p.IsSeeded?.checkbox ?? false,
+    mapUrl:     txt(p.MapUrl),  // 카카오맵 링크
+  };
 }
 
 function toPlaceProps(p) {
@@ -194,10 +233,13 @@ function toPlaceProps(p) {
     Lng:       {number:   Number(p.lng)||0},
     CreatedAt: {rich_text:[{text:{content:p.createdAt||new Date().toLocaleDateString('ko-KR')}}]},
     IsSeeded:  {checkbox: Boolean(p.isSeeded)},
+    MapUrl:    {rich_text:[{text:{content:p.mapUrl||''}}]},
   };
 }
 
 const enc = s => encodeURIComponent(s);
 const res = (statusCode, data, headers) => ({
-  statusCode, headers:{...headers,'Content-Type':'application/json'}, body:JSON.stringify(data),
+  statusCode,
+  headers:{...headers,'Content-Type':'application/json'},
+  body:JSON.stringify(data),
 });
