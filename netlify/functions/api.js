@@ -31,7 +31,7 @@ exports.handler = async (event) => {
   const allowed = process.env.ALLOWED_ORIGIN || '*';
   const cors = {
     'Access-Control-Allow-Origin':  allowed === '*' ? '*' : (origin.startsWith(allowed) ? origin : ''),
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
@@ -45,6 +45,7 @@ exports.handler = async (event) => {
     let result;
     if      (path === 'places' && method === 'GET')    result = await getPlaces();
     else if (path === 'places' && method === 'POST')   result = await addPlace(JSON.parse(event.body || '{}'));
+    else if (path === 'places' && method === 'PATCH')  result = await updatePlace(q.id, JSON.parse(event.body || '{}'));
     else if (path === 'places' && method === 'DELETE') result = await deletePlace(q.id);
     else if (path === 'search')                        result = await search(q.q);
     else if (path === 'geocode')                       result = await geocode(q.q);
@@ -75,6 +76,17 @@ async function addPlace(body) {
   }
   const r = await nFetch('/pages', 'POST', {
     parent:     { database_id: dbId() },
+    properties: toProps(body),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.message || JSON.stringify(d));
+  return toPlace(d);
+}
+
+// ── 맛집 수정 ─────────────────────────────────────────────
+async function updatePlace(pageId, body) {
+  if (!pageId) throw new Error('id is required');
+  const r = await nFetch(`/pages/${pageId}`, 'PATCH', {
     properties: toProps(body),
   });
   const d = await r.json();
