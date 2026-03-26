@@ -631,7 +631,7 @@ function showDetail(p) {
       <div class="comment-input-wrap">
         <input class="comment-input" id="comment-input-${p.id}"
           placeholder="댓글을 남겨보세요..." maxlength="80"
-          onkeydown="if(event.key==='Enter')addComment('${p.id}')"/>
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addComment('${p.id}')}"/>
         <button class="comment-send" onclick="addComment('${p.id}')">등록</button>
       </div>
     </div>`;
@@ -698,6 +698,10 @@ async function addComment(placeId) {
   if(!input) return;
   const text = input.value.trim();
   if(!text) return;
+  // 중복 실행 방지
+  if(input.dataset.submitting === '1') return;
+  input.dataset.submitting = '1';
+  input.value = '';
   const body = { placeId, nick:myNick, text, date:new Date().toLocaleDateString('ko-KR') };
   try {
     const saved = await api.postComment(body);
@@ -707,7 +711,7 @@ async function addComment(placeId) {
     if(!comments[placeId]) comments[placeId]=[];
     comments[placeId].push({...body, id:Date.now().toString()});
   }
-  input.value='';
+  input.dataset.submitting = '';
   const listEl = document.getElementById('comment-list-'+placeId);
   if(listEl) listEl.innerHTML=renderComments(placeId);
   renderList();
