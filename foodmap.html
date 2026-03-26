@@ -184,7 +184,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .addr-row .form-input { flex:1; }
 .search-btn { padding:10px 14px; background:var(--surface3); border:1px solid var(--border2); border-radius:var(--radius-sm); color:var(--text); font-size:12px; cursor:pointer; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; transition:background .15s; flex-shrink:0; }
 .search-btn:hover { background:var(--surface2); border-color:var(--accent); color:var(--accent); }
-.search-results { margin-top:6px; background:var(--surface2); border-radius:var(--radius-sm); border:1px solid var(--border); overflow:hidden; display:none; }
+.search-results { background:var(--surface2); border-radius:var(--radius-sm); border:1px solid var(--border2); overflow:hidden; display:none; box-shadow:0 8px 24px rgba(0,0,0,.4); }
 .search-results.open { display:block; }
 .search-result-item { padding:9px 12px; font-size:12px; color:var(--text2); cursor:pointer; border-bottom:1px solid var(--border); transition:background .1s; }
 .search-result-item:last-child { border-bottom:none; }
@@ -300,6 +300,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
       <div class="search-results" id="search-results"></div>
       <div class="coord-preview" id="coord-preview"></div>
       <input class="form-input" id="f-addr-detail" type="text" placeholder="상세 주소 (선택)" style="margin-top:6px;" maxlength="40"/>
+    <input type="hidden" id="f-mapurl"/>
     </div>
     <div class="form-group">
       <label class="form-label">카테고리 *</label>
@@ -328,11 +329,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
       <input class="form-input" id="f-mapurl" type="text" placeholder="카카오맵에서 공유한 링크를 붙여넣으세요"/>
       <div style="font-size:11px;color:var(--text3);margin-top:4px">카카오맵 앱 → 장소 → 공유 → 링크 복사</div>
     </div>
-    <div class="form-group">
-      <label class="form-label">등록 닉네임</label>
-      <input class="form-input" id="f-nick" readonly/>
-      <div class="nick-hint"><strong id="hint-nick"></strong>으로 자동 등록됩니다.</div>
-    </div>
+
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
       <button class="btn-submit" id="submit-btn" onclick="submitPlace()">등록하기</button>
@@ -731,9 +728,9 @@ async function removeComment(placeId, commentId) {
 function openModal() {
   editingId=null;
   ['f-name','f-addr','f-addr-detail','f-review','f-mapurl'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('search-results').classList.remove('open');
   document.getElementById('f-cat').value='';
-  document.getElementById('f-nick').value=myNick;
-  document.getElementById('hint-nick').textContent=myNick;
+
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').textContent='등록하기';
   document.getElementById('modal-title').textContent='🍽️ 맛집 등록';
@@ -746,14 +743,14 @@ function openEditModal(id) {
   const p=places.find(x=>x.id===id);
   if(!p) return;
   editingId=id;
+  document.getElementById('f-addr').removeAttribute('readonly');
   document.getElementById('f-name').value=p.name;
   document.getElementById('f-addr').value=p.addr;
   document.getElementById('f-addr-detail').value=p.addrDetail||'';
   document.getElementById('f-cat').value=p.cat;
   document.getElementById('f-review').value=p.review||'';
   document.getElementById('f-mapurl').value=p.mapUrl||'';
-  document.getElementById('f-nick').value=p.nick;
-  document.getElementById('hint-nick').textContent=p.nick;
+
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').textContent='수정 완료';
   document.getElementById('modal-title').textContent='✏️ 맛집 수정';
@@ -767,59 +764,70 @@ function openEditModal(id) {
   curStar=p.stars||3;updateStars();
   document.getElementById('modal-overlay').classList.add('open');
 }
-function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.getElementById('f-addr').setAttribute('readonly','');}
 function setStar(n){curStar=n;updateStars();}
 function updateStars(){
   document.querySelectorAll('.star-btn').forEach((s,i)=>s.classList.toggle('lit',i<curStar));
 }
 
-async function searchAddr() {
-  const q=document.getElementById('f-addr').value.trim();
-  if(!q){showToast('⚠️ 주소나 음식점명을 입력하세요');return;}
-  const resultsEl=document.getElementById('search-results');
-  resultsEl.innerHTML='<div class="search-result-item" style="color:var(--text3)">검색 중...</div>';
+let searchTimer = null;
+
+function onNameInput() {
+  const q = document.getElementById('f-name').value.trim();
+  const resultsEl = document.getElementById('search-results');
+  clearTimeout(searchTimer);
+  if(!q || q.length < 2) { resultsEl.classList.remove('open'); return; }
+  resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--text3);font-size:12px">검색 중...</div>';
   resultsEl.classList.add('open');
+  searchTimer = setTimeout(() => liveSearch(q), 350); // 350ms 디바운스
+}
+
+async function liveSearch(q) {
+  const resultsEl = document.getElementById('search-results');
   try {
-    const [bySearch,byGeo]=await Promise.all([
-      api.search(q).catch(()=>[]),
-      api.geocode(q).catch(()=>({ok:false})),
-    ]);
-    const results=[...(bySearch||[])];
-    if(byGeo?.ok&&!results.find(r=>Math.abs(r.lat-byGeo.lat)<0.001)){
-      results.push({name:byGeo.name,addr:byGeo.addr,lat:byGeo.lat,lng:byGeo.lng});
-    }
-    if(!results.length){
-      resultsEl.innerHTML='<div class="search-result-item" style="color:var(--text3)">검색 결과가 없어요. 주소를 직접 입력해도 됩니다.</div>';
+    const results = await api.search(q);
+    if(!results || !results.length) {
+      resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--text3);font-size:12px">검색 결과가 없어요</div>';
       return;
     }
-    resultsEl.innerHTML=results.map((r,i)=>`
-      <div class="search-result-item" onclick="pickAddr(${i})">
+    resultsEl.innerHTML = results.map((r,i) => `
+      <div class="search-result-item" onclick="pickPlace(${i})">
         <div class="search-result-name">${r.name}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px">${r.addr}</div>
       </div>`).join('');
-    resultsEl._data=results;
-  } catch(e){resultsEl.innerHTML=`<div class="search-result-item" style="color:#ff6060">검색 실패: ${e.message}</div>`;}
+    resultsEl._data = results;
+  } catch(e) {
+    resultsEl.innerHTML = `<div class="search-result-item" style="color:#ff6060;font-size:12px">검색 실패</div>`;
+  }
 }
-function pickAddr(i) {
-  const r=document.getElementById('search-results')._data[i];
-  document.getElementById('f-addr').value=r.addr;
-  if(!document.getElementById('f-name').value) document.getElementById('f-name').value=r.name;
-  if(r.mapUrl) document.getElementById('f-mapurl').value=r.mapUrl;
-  pendingCoord={lat:r.lat,lng:r.lng};
+
+function pickPlace(i) {
+  const r = document.getElementById('search-results')._data[i];
+  // 이름, 주소, 좌표, 카카오맵 링크 자동 입력
+  document.getElementById('f-name').value  = r.name;
+  document.getElementById('f-addr').value  = r.addr;
+  document.getElementById('f-mapurl').value = r.mapUrl || '';
+  pendingCoord = { lat: r.lat, lng: r.lng };
   document.getElementById('search-results').classList.remove('open');
-  const prev=document.getElementById('coord-preview');
-  prev.textContent=`📍 위치 확인됨: ${r.name}`;
+  const prev = document.getElementById('coord-preview');
+  prev.textContent = `📍 ${r.name} · ${r.addr}`;
   prev.classList.add('show');
-  if(map) map.panTo([r.lat,r.lng]);
-  showToast('✅ 위치 선택됨: '+r.name);
+  if(map) map.panTo([r.lat, r.lng]);
 }
+
+// 검색 드롭다운 외부 클릭 시 닫기
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('#f-name') && !e.target.closest('#search-results')) {
+    document.getElementById('search-results')?.classList.remove('open');
+  }
+});
 
 async function submitPlace() {
   const name=document.getElementById('f-name').value.trim();
   const addr=document.getElementById('f-addr').value.trim();
   const cat=document.getElementById('f-cat').value;
   if(!name){showToast('⚠️ 음식점 이름을 입력해주세요');return;}
-  if(!addr){showToast('⚠️ 주소를 입력해주세요');return;}
+  // 주소는 선택사항 (검색 선택 시 자동입력됨)
   if(!cat){showToast('⚠️ 카테고리를 선택해주세요');return;}
   const btn=document.getElementById('submit-btn');
   btn.disabled=true;btn.textContent=editingId?'수정 중...':'등록 중...';
