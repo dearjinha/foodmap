@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>사내 맛집 지도</title>
+<title>인플루디오 맛집 지도</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Gmarket+Sans:wght@500;700&display=swap" rel="stylesheet"/>
@@ -29,6 +29,12 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .search-wrap input:focus { border-color:var(--accent); }
 .search-wrap input::placeholder { color:var(--text3); }
 .search-icon { position:absolute; right:11px; top:50%; transform:translateY(-50%); color:var(--text3); font-size:14px; pointer-events:none; }
+
+.sort-row { display:flex; gap:6px; margin-bottom:10px; }
+.sort-btn { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:500; border:1px solid var(--border); background:var(--surface2); color:var(--text3); cursor:pointer; transition:all .15s; white-space:nowrap; }
+.sort-btn.active { background:var(--surface3); border-color:var(--border2); color:var(--text); }
+.sort-btn:hover { color:var(--text2); }
+
 .filter-chips { display:flex; gap:6px; flex-wrap:wrap; }
 .chip { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:500; border:1px solid var(--border); background:var(--surface2); color:var(--text2); cursor:pointer; transition:all .15s; white-space:nowrap; }
 .chip:hover { border-color:var(--border2); color:var(--text); }
@@ -58,13 +64,17 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .cat-기타 { background:rgba(136,136,136,.18); color:#aaa; }
 .place-item-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
 .stars-mini { color:var(--yellow); font-size:11px; letter-spacing:-1px; }
+.star-count { font-size:11px; color:var(--text3); }
 .nick-tag { color:var(--text3); font-size:11px; }
+.comment-count { font-size:11px; color:var(--text3); margin-left:auto; }
 .place-item-review { font-size:12px; color:var(--text2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
 #no-result { padding:40px 20px; text-align:center; color:var(--text3); font-size:13px; }
 .list-loading { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px; }
 .spinner { width:24px; height:24px; border:2px solid var(--surface3); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .list-loading p { font-size:13px; color:var(--text3); }
+
 #add-btn { margin:12px 20px; padding:12px; background:var(--accent); border:none; border-radius:var(--radius-sm); color:#fff; font-size:14px; font-weight:700; font-family:'Gmarket Sans',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:opacity .15s, transform .1s; }
 #add-btn:hover { opacity:.88; }
 #add-btn:active { transform:scale(.98); }
@@ -77,20 +87,28 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .leaflet-control-attribution { font-size:10px; background:rgba(26,26,34,.8) !important; color:var(--text3) !important; }
 .leaflet-control-attribution a { color:var(--text3) !important; }
 .leaflet-control-zoom a { background:var(--surface) !important; color:var(--text) !important; border-color:var(--border2) !important; }
-.map-pin-wrap { cursor:pointer; }
+
+/* ── 맛집 핀 ── */
+.map-pin-wrap { cursor:pointer; display:flex; flex-direction:column; align-items:flex-start; }
 .map-pin-bubble { background:var(--surface); border:1.5px solid var(--border2); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; font-family:'Noto Sans KR',sans-serif; color:var(--text); white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,.45); display:flex; align-items:center; gap:5px; transition:transform .15s; }
 .map-pin-bubble:hover { transform:translateY(-2px); }
 .map-pin-bubble.sel { background:#2a1a14; }
 .pin-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.pin-tail { width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid var(--surface); margin:0 auto; }
-.pin-tail.sel { border-top-color:#2a1a14; }
-.hq-pin { background:#ff6b35; color:#fff; font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; box-shadow:0 2px 8px rgba(255,107,53,.5); }
+.pin-tail { width:10px; height:6px; margin-left:10px; clip-path:polygon(0 0, 100% 0, 50% 100%); background:var(--surface); }
+.pin-tail.sel { background:#2a1a14; }
+
+/* ── 회사 핀 (깔끔한 라운드 말풍선) ── */
+.hq-pin-wrap { display:flex; flex-direction:column; align-items:center; cursor:default; }
+.hq-pin-bubble { background:var(--accent); color:#fff; font-size:12px; font-weight:700; padding:6px 12px; border-radius:20px; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; box-shadow:0 3px 12px rgba(255,107,53,.45); }
+.hq-pin-tail { width:10px; height:6px; clip-path:polygon(0 0, 100% 0, 50% 100%); background:var(--accent); margin-top:-1px; }
+
 #map-info-bar { position:absolute; top:14px; left:14px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius-sm); padding:8px 14px; font-size:12px; color:var(--text2); z-index:500; display:flex; align-items:center; gap:8px; }
 .map-count { font-weight:700; color:var(--accent); }
 .sync-dot { width:7px; height:7px; border-radius:50%; background:#5cb85c; flex-shrink:0; }
 .sync-dot.loading { background:var(--yellow); animation:pulse .8s ease-in-out infinite; }
 .sync-dot.error { background:#e85d3c; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
 .my-nick-badge { position:absolute; bottom:14px; left:14px; background:var(--surface); border:1px solid var(--border2); border-radius:20px; padding:7px 14px; font-size:12px; color:var(--text2); z-index:500; cursor:pointer; transition:border-color .15s; }
 .my-nick-badge:hover { border-color:var(--accent); color:var(--accent); }
 .my-nick-badge strong { color:var(--text); }
@@ -103,12 +121,24 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .dp-close:hover { background:var(--surface); color:var(--text); }
 .dp-cat-badge { display:inline-block; font-size:11px; padding:3px 9px; border-radius:10px; font-weight:500; margin-bottom:8px; }
 .dp-name { font-family:'Gmarket Sans',sans-serif; font-size:20px; font-weight:700; color:var(--text); margin-bottom:6px; }
-.dp-address { font-size:12px; color:var(--text2); margin-bottom:14px; line-height:1.5; }
-.dp-stars { color:var(--yellow); font-size:18px; letter-spacing:1px; margin-bottom:4px; }
-.dp-nick { font-size:12px; color:var(--text3); margin-bottom:12px; }
+.dp-address { font-size:12px; color:var(--text2); margin-bottom:10px; line-height:1.5; }
+.dp-star-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.dp-stars { color:var(--yellow); font-size:16px; letter-spacing:1px; }
+.dp-star-info { font-size:12px; color:var(--text3); }
+.dp-nick { font-size:12px; color:var(--text3); margin-bottom:10px; }
 .dp-nick strong { color:var(--text2); }
-.dp-review { background:var(--surface2); border-radius:var(--radius-sm); padding:12px; font-size:13px; color:var(--text2); line-height:1.6; border-left:3px solid var(--accent); }
-.dp-actions { display:flex; gap:8px; margin-top:12px; }
+.dp-review { background:var(--surface2); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; color:var(--text2); line-height:1.6; border-left:3px solid var(--accent); margin-bottom:10px; }
+
+/* 별점 주기 */
+.dp-rate-section { background:var(--surface2); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:10px; }
+.dp-rate-label { font-size:11px; color:var(--text3); margin-bottom:6px; }
+.dp-rate-stars { display:flex; gap:4px; }
+.rate-star { font-size:22px; cursor:pointer; color:var(--surface3); transition:color .1s, transform .1s; line-height:1; }
+.rate-star.lit { color:var(--yellow); }
+.rate-star:hover { transform:scale(1.15); }
+.rate-done { font-size:11px; color:#5cb85c; margin-top:6px; }
+
+.dp-actions { display:flex; gap:8px; margin-bottom:10px; }
 .dp-edit { flex:1; padding:8px; background:rgba(63,131,248,.1); border:1px solid rgba(63,131,248,.2); border-radius:var(--radius-sm); color:#4fa3f7; font-size:12px; cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all .15s; }
 .dp-edit:hover { background:rgba(63,131,248,.2); }
 .dp-delete { flex:1; padding:8px; background:rgba(255,80,80,.1); border:1px solid rgba(255,80,80,.2); border-radius:var(--radius-sm); color:#ff6060; font-size:12px; cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all .15s; }
@@ -116,7 +146,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .dp-delete:disabled { opacity:.4; cursor:not-allowed; }
 
 /* ── COMMENTS ── */
-.dp-comments { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
+.dp-comments { border-top:1px solid var(--border); padding-top:12px; }
 .dp-comments-title { font-size:11px; font-weight:500; color:var(--text3); margin-bottom:8px; letter-spacing:.05em; }
 .comment-item { padding:8px 0; border-bottom:1px solid var(--border); }
 .comment-item:last-child { border-bottom:none; }
@@ -192,24 +222,32 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 </head>
 <body>
 
+<!-- 닉네임 -->
 <div id="nick-screen">
   <div class="nick-card">
-    <div class="nick-logo">🍽️ 사내 맛집 지도</div>
+    <div class="nick-logo">🍽️ 인플루디오 맛집 지도</div>
     <div class="nick-sub">팀원들과 맛집을 공유해요!<br>먼저 사용할 닉네임을 정해주세요.</div>
-    <input class="nick-input" id="nick-input" type="text" placeholder="ex) 점심천재, 미식가김대리" maxlength="12"
+    <input class="nick-input" id="nick-input" type="text"
+      placeholder="ex) 밥먹는포끼, 미식가팔용이" maxlength="12"
       onkeydown="if(event.key==='Enter')submitNick()"/>
     <div class="nick-error" id="nick-error"></div>
     <button class="nick-submit" onclick="submitNick()">시작하기 →</button>
   </div>
 </div>
 
+<!-- 메인 -->
 <div id="app" style="display:none;">
   <div id="sidebar">
     <div id="sidebar-top">
-      <div class="logo"><span class="logo-dot"></span>사내 맛집 지도</div>
+      <div class="logo"><span class="logo-dot"></span>인플루디오 맛집 지도</div>
       <div class="search-wrap">
         <input type="text" id="search-input" placeholder="음식점, 닉네임 검색..." oninput="renderList()"/>
         <span class="search-icon">🔍</span>
+      </div>
+      <div class="sort-row">
+        <button class="sort-btn active" data-sort="latest" onclick="setSort('latest',this)">최신순</button>
+        <button class="sort-btn" data-sort="stars" onclick="setSort('stars',this)">⭐ 별점 높은순</button>
+        <button class="sort-btn" data-sort="comments" onclick="setSort('comments',this)">💬 댓글 많은순</button>
       </div>
       <div class="filter-chips">
         <button class="chip active" data-cat="전체" onclick="setFilter('전체',this)">전체</button>
@@ -243,6 +281,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
   </div>
 </div>
 
+<!-- 등록/수정 모달 -->
 <div id="modal-overlay">
   <div id="modal">
     <div class="modal-title" id="modal-title">🍽️ 맛집 등록</div>
@@ -270,7 +309,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
     </div>
     <div class="form-group">
       <label class="form-label">별점</label>
-      <div class="star-picker" id="star-picker">
+      <div class="star-picker">
         <span class="star-btn" onclick="setStar(1)">★</span>
         <span class="star-btn" onclick="setStar(2)">★</span>
         <span class="star-btn" onclick="setStar(3)">★</span>
@@ -299,16 +338,16 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 <script>
 const API = '/api';
 
-// ── 영등포 타임스퀘어 정확 좌표 ──
-const HQ = { lat: 37.5172, lng: 126.9028 };
+// ── 영등포 타임스퀘어 (정확 좌표) ──
+const HQ = { lat: 37.5179, lng: 126.9026 };
 
-// ── 기본 시드 맛집 (타임스퀘어 건물 내 정확 위치) ──
+// ── 시드 맛집 (타임스퀘어 건물 내 좌표) ──
 const SEEDS = [
-  { name:'담솥',               addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어 3층 305-1호', cat:'한식', stars:4,   review:'다양한 솥밥과 따뜻한 누룽지 한상',        nick:'맛집봇', lat:37.5175, lng:126.9022, isSeeded:true },
-  { name:'차알',               addr:'서울 영등포구 영중로 15', addrDetail:'1층 101호',              cat:'중식', stars:3,   review:'넓고 깔끔한 공간에서 즐기는 퓨전 중식',   nick:'맛집봇', lat:37.5170, lng:126.9025, isSeeded:true },
-  { name:'홍수계찜닭',         addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어',             cat:'한식', stars:3,   review:'쫄깃한 당면과 깊은 간장 양념의 찜닭',     nick:'맛집봇', lat:37.5178, lng:126.9030, isSeeded:true },
-  { name:'마마된장',           addr:'서울 영등포구 영중로 15', addrDetail:'지하1층 B148호',         cat:'한식', stars:2.5, review:'집밥처럼 편안한 깊은 된장 맛',             nick:'맛집봇', lat:37.5168, lng:126.9032, isSeeded:true },
-  { name:'타임스퀘어 구내식당',addr:'서울 영등포구 영중로 15', addrDetail:'지하2층',               cat:'한식', stars:3,   review:'구내식당',                                nick:'맛집봇', lat:37.5165, lng:126.9028, isSeeded:true },
+  { name:'담솥',               addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어 3층 305-1호', cat:'한식', stars:4,   review:'다양한 솥밥과 따뜻한 누룽지 한상',        nick:'맛집봇', lat:37.5181, lng:126.9021, isSeeded:true },
+  { name:'차알',               addr:'서울 영등포구 영중로 15', addrDetail:'1층 101호',              cat:'중식', stars:3,   review:'넓고 깔끔한 공간에서 즐기는 퓨전 중식',   nick:'맛집봇', lat:37.5177, lng:126.9024, isSeeded:true },
+  { name:'홍수계찜닭',         addr:'서울 영등포구 영중로 15', addrDetail:'타임스퀘어',             cat:'한식', stars:3,   review:'쫄깃한 당면과 깊은 간장 양념의 찜닭',     nick:'맛집봇', lat:37.5183, lng:126.9029, isSeeded:true },
+  { name:'마마된장',           addr:'서울 영등포구 영중로 15', addrDetail:'지하1층 B148호',         cat:'한식', stars:2.5, review:'집밥처럼 편안한 깊은 된장 맛',             nick:'맛집봇', lat:37.5174, lng:126.9031, isSeeded:true },
+  { name:'타임스퀘어 구내식당',addr:'서울 영등포구 영중로 15', addrDetail:'지하2층',               cat:'한식', stars:3,   review:'구내식당',                                nick:'맛집봇', lat:37.5171, lng:126.9027, isSeeded:true },
 ];
 
 const CAT_COLORS = { '한식':'#e85d3c','중식':'#e8a03c','일식':'#3c8ee8','양식':'#7c5ce8','카페':'#5cb85c','기타':'#888' };
@@ -317,29 +356,53 @@ let myNick      = localStorage.getItem('foodmap_nick') || '';
 let places      = [];
 let selId       = null;
 let curFilter   = '전체';
+let curSort     = 'latest';
 let curStar     = 0;
 let pendingCoord= null;
 let editingId   = null;
 let map         = null;
 let markers     = {};
 let pollTimer   = null;
-let comments    = {};  // placeId → [{id,nick,text,date}]
+// ratings: { placeId: { [nick]: score } }
+let ratings     = JSON.parse(localStorage.getItem('foodmap_ratings') || '{}');
+// comments: { placeId: [{id,nick,text,date}] } — 노션 DB 연동 후 로컬 병행
+let comments    = {};
 
 const api = {
-  get:    ()         => fetch(`${API}?path=places`).then(r=>r.json()),
-  post:   body       => fetch(`${API}?path=places`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
-  patch:  (id,body)  => fetch(`${API}?path=places&id=${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
-  del:    id         => fetch(`${API}?path=places&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
-  search: q          => fetch(`${API}?path=search&q=${encodeURIComponent(q)}`).then(r=>r.json()),
-  geocode:q          => fetch(`${API}?path=geocode&q=${encodeURIComponent(q)}`).then(r=>r.json()),
+  get:       ()        => fetch(`${API}?path=places`).then(r=>r.json()),
+  post:      body      => fetch(`${API}?path=places`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
+  patch:     (id,body) => fetch(`${API}?path=places&id=${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
+  del:       id        => fetch(`${API}?path=places&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
+  search:    q         => fetch(`${API}?path=search&q=${encodeURIComponent(q)}`).then(r=>r.json()),
+  geocode:   q         => fetch(`${API}?path=geocode&q=${encodeURIComponent(q)}`).then(r=>r.json()),
+  // 댓글 API
+  getComments:  placeId => fetch(`${API}?path=comments&placeId=${encodeURIComponent(placeId)}`).then(r=>r.json()),
+  postComment:  body    => fetch(`${API}?path=comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
+  delComment:   id      => fetch(`${API}?path=comments&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
 };
+
+// ── 별점 계산 ──
+function getAvgStars(placeId, baseStars) {
+  const r = ratings[placeId] || {};
+  const entries = Object.values(r);
+  if (!entries.length) return { avg: baseStars, count: 0 };
+  const total = entries.reduce((s,v) => s+v, 0);
+  return { avg: total / entries.length, count: entries.length };
+}
+function getMyRating(placeId) {
+  return ratings[placeId]?.[myNick] || 0;
+}
+function saveRatings() { localStorage.setItem('foodmap_ratings', JSON.stringify(ratings)); }
+
+// ── 댓글 수 ──
+function getCommentCount(placeId) { return (comments[placeId] || []).length; }
 
 // ── 닉네임 ──
 function submitNick() {
   const v = document.getElementById('nick-input').value.trim();
   const e = document.getElementById('nick-error');
-  if (!v)         { e.textContent='닉네임을 입력해주세요.'; return; }
-  if (v.length<2) { e.textContent='2자 이상 입력해주세요.'; return; }
+  if (!v)        { e.textContent='닉네임을 입력해주세요.'; return; }
+  if (v.length<2){ e.textContent='2자 이상 입력해주세요.'; return; }
   myNick = v.slice(0,12);
   localStorage.setItem('foodmap_nick', myNick);
   document.getElementById('nick-screen').classList.add('hidden');
@@ -359,15 +422,17 @@ function changeNick() {
 
 // ── 지도 초기화 ──
 function initMap() {
-  map = L.map('map',{center:[HQ.lat,HQ.lng],zoom:16,zoomControl:true});
+  map = L.map('map',{center:[HQ.lat,HQ.lng],zoom:17,zoomControl:true});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom:19,
   }).addTo(map);
+
+  // 회사 핀 (깔끔한 라운드 말풍선)
   const hqIcon = L.divIcon({
     className:'',
-    html:`<div class="map-pin-wrap"><div class="hq-pin">🏢 우리 회사</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ff6b35;margin:0 auto;"></div></div>`,
-    iconAnchor:[46,38],
+    html:`<div class="hq-pin-wrap"><div class="hq-pin-bubble">🏢 인플루디오</div><div class="hq-pin-tail"></div></div>`,
+    iconAnchor:[52, 34],
   });
   L.marker([HQ.lat,HQ.lng],{icon:hqIcon}).addTo(map);
   loadData();
@@ -381,25 +446,41 @@ async function loadData() {
     if (!Array.isArray(data)||data.length===0) {
       showToast('📦 기본 추천 맛집 등록 중...');
       const today = new Date().toLocaleDateString('ko-KR');
-      for (const s of SEEDS) await api.post({...s,created_at:today});
+      for (const s of SEEDS) await api.post({...s, createdAt:today});
       data = await api.get();
     }
     places = Array.isArray(data)?data.map(normalize):[];
     setSyncState('ok');
+    await loadAllComments();
     renderAll();
     clearInterval(pollTimer);
     pollTimer = setInterval(async()=>{
       try {
         const d = await api.get();
-        if (Array.isArray(d)){places=d.map(normalize);renderAll();setSyncState('ok');}
-      } catch {setSyncState('error');}
-    },30000);
+        if (Array.isArray(d)){
+          places = d.map(normalize);
+          await loadAllComments();
+          renderAll();
+          setSyncState('ok');
+        }
+      } catch { setSyncState('error'); }
+    }, 30000);
   } catch(e) {
     setSyncState('error');
     places = JSON.parse(localStorage.getItem('foodmap_local')||'null')
-           ||SEEDS.map((s,i)=>({...s,id:'local_'+i}));
+           || SEEDS.map((s,i)=>({...s,id:'local_'+i}));
     renderAll();
-    showToast('⚠️ 오프라인 모드 — API를 확인해주세요');
+    showToast('⚠️ 오프라인 모드');
+  }
+}
+
+// ── 댓글 전체 로드 ──
+async function loadAllComments() {
+  for (const p of places) {
+    try {
+      const data = await api.getComments(p.id);
+      if (Array.isArray(data)) comments[p.id] = data;
+    } catch { comments[p.id] = comments[p.id] || []; }
   }
 }
 
@@ -411,44 +492,67 @@ function normalize(p) {
   };
 }
 
-// ── 필터/검색 ──
+// ── 필터/정렬/검색 ──
 function setFilter(cat,btn) {
   curFilter=cat;
   document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
   btn.classList.add('active');
   renderAll();
 }
+function setSort(sort,btn) {
+  curSort=sort;
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
 function getFiltered() {
-  const q=document.getElementById('search-input').value.toLowerCase();
-  return places.filter(p=>{
-    const matchCat=curFilter==='전체'||p.cat===curFilter;
-    const matchQ=!q||p.name.toLowerCase().includes(q)||p.nick.toLowerCase().includes(q);
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let list = places.filter(p=>{
+    const matchCat = curFilter==='전체'||p.cat===curFilter;
+    const matchQ   = !q||p.name.toLowerCase().includes(q)||p.nick.toLowerCase().includes(q);
     return matchCat&&matchQ;
   });
+  if (curSort==='stars') {
+    list = list.sort((a,b)=>{
+      const ra = getAvgStars(a.id,a.stars).avg;
+      const rb = getAvgStars(b.id,b.stars).avg;
+      return rb - ra;
+    });
+  } else if (curSort==='comments') {
+    list = list.sort((a,b)=>getCommentCount(b.id)-getCommentCount(a.id));
+  }
+  return list;
 }
 
 // ── 렌더 ──
 function renderList() {
-  const list=document.getElementById('place-list');
-  const filtered=getFiltered();
+  const list = document.getElementById('place-list');
+  const filtered = getFiltered();
   document.getElementById('total-count').textContent=places.length;
-  const filteredIds=new Set(filtered.map(p=>p.id));
+  const filteredIds = new Set(filtered.map(p=>p.id));
   Object.entries(markers).forEach(([id,m])=>{
     if(m._icon) m._icon.style.opacity=filteredIds.size===0||filteredIds.has(id)?'1':'0.2';
   });
   if(!filtered.length){list.innerHTML='<div id="no-result">😅 해당하는 맛집이 없어요</div>';return;}
-  list.innerHTML=filtered.map(p=>`
+  list.innerHTML=filtered.map(p=>{
+    const {avg,count} = getAvgStars(p.id, p.stars);
+    const starStr = '★'.repeat(Math.floor(avg))+'☆'.repeat(5-Math.floor(avg));
+    const cCount  = getCommentCount(p.id);
+    return `
     <div class="place-item${selId===p.id?' active':''}" onclick="selectPlace('${p.id}')">
       <div class="place-item-top">
         <span class="place-item-name">${p.name}</span>
         <span class="cat-badge cat-${p.cat}">${p.cat}</span>
       </div>
       <div class="place-item-meta">
-        <span class="stars-mini">${'★'.repeat(Math.floor(p.stars||0))}${'☆'.repeat(5-Math.floor(p.stars||0))}</span>
+        <span class="stars-mini">${starStr}</span>
+        <span class="star-count">${avg.toFixed(1)}${count?` (${count}명)`:''}</span>
         <span class="nick-tag">@${p.nick}${p.isSeeded?' 🤖':''}</span>
+        ${cCount?`<span class="comment-count">💬 ${cCount}</span>`:''}
       </div>
       ${p.review?`<div class="place-item-review">${p.review}</div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderMarkers() {
@@ -457,14 +561,14 @@ function renderMarkers() {
   markers={};
   places.forEach(p=>{
     if(!p.lat||!p.lng) return;
-    const color=CAT_COLORS[p.cat]||'#888';
-    const isSel=selId===p.id;
-    const icon=L.divIcon({
+    const color = CAT_COLORS[p.cat]||'#888';
+    const isSel = selId===p.id;
+    const icon = L.divIcon({
       className:'',
       html:`<div class="map-pin-wrap"><div class="map-pin-bubble${isSel?' sel':''}" style="border-color:${isSel?color:'rgba(255,255,255,0.15)'}"><span class="pin-dot" style="background:${color}"></span>${p.name}</div><div class="pin-tail${isSel?' sel':''}"></div></div>`,
-      iconAnchor:[0,38],
+      iconAnchor:[0,34],
     });
-    const m=L.marker([p.lat,p.lng],{icon}).addTo(map);
+    const m = L.marker([p.lat,p.lng],{icon}).addTo(map);
     m.on('click',()=>selectPlace(p.id));
     markers[p.id]=m;
   });
@@ -474,36 +578,53 @@ function renderAll(){renderList();renderMarkers();}
 
 // ── 선택 ──
 function selectPlace(id) {
-  selId=selId===id?null:id;
+  selId = selId===id?null:id;
   renderAll();
   if(selId){
     const p=places.find(x=>x.id===id);
     if(p&&p.lat) map.panTo([p.lat,p.lng]);
     if(p) showDetail(p);
-  } else {
-    closeDetail();
-  }
+  } else { closeDetail(); }
   const card=document.querySelector('.place-item.active');
   if(card) card.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
 // ── 상세 패널 ──
 function showDetail(p) {
-  const isMine=p.nick===myNick&&!p.isSeeded;
+  const isMine = p.nick===myNick&&!p.isSeeded;
+  const {avg,count} = getAvgStars(p.id, p.stars);
+  const myRate = getMyRating(p.id);
+  const starStr = '★'.repeat(Math.floor(avg))+'☆'.repeat(5-Math.floor(avg));
+
   document.getElementById('dp-content').innerHTML=`
     <span class="dp-cat-badge cat-${p.cat}">${p.cat}</span>
     <div class="dp-name">${p.name}</div>
     <div class="dp-address">📍 ${p.addr}${p.addrDetail?' · '+p.addrDetail:''}</div>
-    <div class="dp-stars">${'★'.repeat(Math.floor(p.stars||0))}${'☆'.repeat(5-Math.floor(p.stars||0))}</div>
-    <div class="dp-nick">등록: <strong>@${p.nick}</strong>${p.isSeeded?' <span style="font-size:10px;color:var(--text3)">· 기본 추천</span>':''}</div>
+    <div class="dp-star-row">
+      <span class="dp-stars">${starStr}</span>
+      <span class="dp-star-info">${avg.toFixed(1)}점${count?' ('+count+'명 참여)':''}</span>
+    </div>
+    <div class="dp-nick" style="margin-top:4px">등록: <strong>@${p.nick}</strong>${p.isSeeded?' <span style="font-size:10px;color:var(--text3)">· 기본 추천</span>':''}</div>
     ${p.review?`<div class="dp-review">"${p.review}"</div>`:''}
-    <div style="font-size:11px;color:var(--text3);margin-top:8px;">${p.createdAt||''}</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:10px">${p.createdAt||''}</div>
+
+    <!-- 별점 주기 (등록자 외 누구나) -->
+    ${!isMine?`<div class="dp-rate-section">
+      <div class="dp-rate-label">${myRate?'내가 준 별점 — 다시 평가하기':'이 식당에 별점을 주세요'}</div>
+      <div class="dp-rate-stars" id="rate-stars-${p.id}">
+        ${[1,2,3,4,5].map(n=>`<span class="rate-star${myRate>=n?' lit':''}" onclick="giveRating('${p.id}',${n})">${n<=myRate?'★':'☆'}</span>`).join('')}
+      </div>
+      ${myRate?`<div class="rate-done">✓ ${myRate}점 평가 완료</div>`:''}
+    </div>`:''}
+
     ${isMine?`<div class="dp-actions">
       <button class="dp-edit" onclick="openEditModal('${p.id}')">✏️ 수정</button>
       <button class="dp-delete" id="del-btn" onclick="deletePlace('${p.id}')">🗑 삭제</button>
     </div>`:''}
+
+    <!-- 댓글 -->
     <div class="dp-comments">
-      <div class="dp-comments-title">💬 댓글</div>
+      <div class="dp-comments-title">💬 댓글 ${getCommentCount(p.id)?'('+getCommentCount(p.id)+')':''}</div>
       <div id="comment-list-${p.id}">${renderComments(p.id)}</div>
       <div class="comment-input-wrap">
         <input class="comment-input" id="comment-input-${p.id}"
@@ -513,6 +634,25 @@ function showDetail(p) {
       </div>
     </div>`;
   document.getElementById('detail-panel').classList.add('show');
+}
+
+// ── 별점 주기 ──
+function giveRating(placeId, score) {
+  if (!ratings[placeId]) ratings[placeId] = {};
+  ratings[placeId][myNick] = score;
+  saveRatings();
+  // 별 UI 즉시 업데이트
+  const starsEl = document.getElementById('rate-stars-'+placeId);
+  if (starsEl) {
+    starsEl.innerHTML = [1,2,3,4,5].map(n=>
+      `<span class="rate-star${score>=n?' lit':''}" onclick="giveRating('${placeId}',${n})">${n<=score?'★':'☆'}</span>`
+    ).join('');
+    const doneEl = starsEl.nextElementSibling;
+    if (doneEl && doneEl.classList.contains('rate-done')) doneEl.textContent = `✓ ${score}점 평가 완료`;
+    else starsEl.insertAdjacentHTML('afterend','<div class="rate-done">✓ '+score+'점 평가 완료</div>');
+  }
+  renderList(); // 목록 별점 평균 업데이트
+  showToast(`⭐ ${score}점 평가 완료!`);
 }
 
 function closeDetail() {
@@ -536,7 +676,7 @@ async function deletePlace(id) {
 
 // ── 댓글 ──
 function renderComments(placeId) {
-  const list=comments[placeId]||[];
+  const list = comments[placeId]||[];
   if(!list.length) return '<div class="no-comments">아직 댓글이 없어요. 첫 댓글을 남겨보세요!</div>';
   return list.map(c=>`
     <div class="comment-item">
@@ -544,38 +684,39 @@ function renderComments(placeId) {
         <span class="comment-nick">@${c.nick}</span>
         <span style="display:flex;align-items:center;gap:6px">
           <span class="comment-date">${c.date}</span>
-          ${c.nick===myNick?`<button class="comment-delete" onclick="deleteComment('${placeId}','${c.id}')">✕</button>`:''}
+          ${c.nick===myNick?`<button class="comment-delete" onclick="removeComment('${placeId}','${c.id}')">✕</button>`:''}
         </span>
       </div>
       <div class="comment-text">${c.text}</div>
     </div>`).join('');
 }
 
-function addComment(placeId) {
-  const input=document.getElementById('comment-input-'+placeId);
+async function addComment(placeId) {
+  const input = document.getElementById('comment-input-'+placeId);
   if(!input) return;
-  const text=input.value.trim();
+  const text = input.value.trim();
   if(!text) return;
-  if(!comments[placeId]) comments[placeId]=[];
-  const c={id:Date.now().toString(),nick:myNick,text,date:new Date().toLocaleDateString('ko-KR')};
-  comments[placeId].push(c);
-  saveComments();
+  const body = { placeId, nick:myNick, text, date:new Date().toLocaleDateString('ko-KR') };
+  try {
+    const saved = await api.postComment(body);
+    if(!comments[placeId]) comments[placeId]=[];
+    comments[placeId].push(saved.id ? saved : {...body, id:Date.now().toString()});
+  } catch {
+    if(!comments[placeId]) comments[placeId]=[];
+    comments[placeId].push({...body, id:Date.now().toString()});
+  }
   input.value='';
-  const listEl=document.getElementById('comment-list-'+placeId);
+  const listEl = document.getElementById('comment-list-'+placeId);
   if(listEl) listEl.innerHTML=renderComments(placeId);
+  renderList();
 }
 
-function deleteComment(placeId,commentId) {
-  if(!comments[placeId]) return;
-  comments[placeId]=comments[placeId].filter(c=>c.id!==commentId);
-  saveComments();
-  const listEl=document.getElementById('comment-list-'+placeId);
+async function removeComment(placeId, commentId) {
+  try { await api.delComment(commentId); } catch {}
+  if(comments[placeId]) comments[placeId]=comments[placeId].filter(c=>c.id!==commentId);
+  const listEl = document.getElementById('comment-list-'+placeId);
   if(listEl) listEl.innerHTML=renderComments(placeId);
-}
-
-function saveComments() {localStorage.setItem('foodmap_comments',JSON.stringify(comments));}
-function loadComments() {
-  try{comments=JSON.parse(localStorage.getItem('foodmap_comments')||'{}');}catch{comments={};}
+  renderList();
 }
 
 // ── 모달 ──
@@ -593,7 +734,6 @@ function openModal() {
   curStar=0;pendingCoord=null;updateStars();
   document.getElementById('modal-overlay').classList.add('open');
 }
-
 function openEditModal(id) {
   const p=places.find(x=>x.id===id);
   if(!p) return;
@@ -612,21 +752,18 @@ function openEditModal(id) {
   pendingCoord=p.lat?{lat:p.lat,lng:p.lng}:null;
   if(pendingCoord){
     const prev=document.getElementById('coord-preview');
-    prev.textContent=`📍 현재 위치 저장됨`;
+    prev.textContent='📍 현재 위치 저장됨';
     prev.classList.add('show');
   }
   curStar=p.stars||3;updateStars();
-  document.getElementById('coord-preview').classList.remove('show');
   document.getElementById('modal-overlay').classList.add('open');
 }
-
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
 function setStar(n){curStar=n;updateStars();}
 function updateStars(){
   document.querySelectorAll('.star-btn').forEach((s,i)=>s.classList.toggle('lit',i<curStar));
 }
 
-// ── 주소 검색 ──
 async function searchAddr() {
   const q=document.getElementById('f-addr').value.trim();
   if(!q){showToast('⚠️ 주소나 음식점명을 입력하세요');return;}
@@ -643,10 +780,7 @@ async function searchAddr() {
       results.push({name:byGeo.name,addr:byGeo.addr,lat:byGeo.lat,lng:byGeo.lng});
     }
     if(!results.length){
-      resultsEl.innerHTML=`<div class="search-result-item" style="color:var(--text3)">
-        검색 결과가 없어요.<br>
-        <span style="font-size:11px">주소를 직접 입력하고 등록하셔도 됩니다.</span>
-      </div>`;
+      resultsEl.innerHTML='<div class="search-result-item" style="color:var(--text3)">검색 결과가 없어요. 주소를 직접 입력해도 됩니다.</div>';
       return;
     }
     resultsEl.innerHTML=results.map((r,i)=>`
@@ -657,7 +791,6 @@ async function searchAddr() {
     resultsEl._data=results;
   } catch(e){resultsEl.innerHTML=`<div class="search-result-item" style="color:#ff6060">검색 실패: ${e.message}</div>`;}
 }
-
 function pickAddr(i) {
   const r=document.getElementById('search-results')._data[i];
   document.getElementById('f-addr').value=r.addr;
@@ -692,7 +825,7 @@ async function submitPlace() {
   };
   try {
     if(editingId){await api.patch(editingId,body);showToast('✅ 수정됐어요!');}
-    else{await api.post(body);showToast('✅ 노션 DB에 저장됐어요!');}
+    else{await api.post(body);showToast('✅ 저장됐어요!');}
     const d=await api.get();
     places=Array.isArray(d)?d.map(normalize):places;
     closeModal();renderAll();
@@ -702,7 +835,6 @@ async function submitPlace() {
   }
 }
 
-// ── 유틸 ──
 function setSyncState(s){
   const d=document.getElementById('sync-dot');
   d.className='sync-dot'+(s==='loading'?' loading':s==='error'?' error':'');
@@ -714,7 +846,6 @@ function showToast(msg){
 }
 
 window.addEventListener('load',()=>{
-  loadComments();
   if(myNick){
     document.getElementById('nick-screen').classList.add('hidden');
     document.getElementById('app').style.display='flex';
