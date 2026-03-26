@@ -126,6 +126,8 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .dp-stars { color:var(--yellow); font-size:16px; letter-spacing:1px; }
 .dp-star-info { font-size:12px; color:var(--text3); }
 .dp-nick { font-size:12px; color:var(--text3); margin-bottom:10px; }
+.dp-kakao-btn { display:inline-flex; align-items:center; gap:6px; margin-bottom:10px; padding:7px 12px; background:rgba(255,193,0,.12); border:1px solid rgba(255,193,0,.25); border-radius:var(--radius-sm); color:#c8960a; font-size:12px; font-weight:500; text-decoration:none; transition:background .15s; }
+.dp-kakao-btn:hover { background:rgba(255,193,0,.2); }
 .dp-nick strong { color:var(--text2); }
 .dp-review { background:var(--surface2); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; color:var(--text2); line-height:1.6; border-left:3px solid var(--accent); margin-bottom:10px; }
 
@@ -322,6 +324,11 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
       <textarea class="form-textarea" id="f-review" placeholder="추천 메뉴나 특징을 자유롭게 적어주세요!" maxlength="100"></textarea>
     </div>
     <div class="form-group">
+      <label class="form-label">카카오맵 링크 <span style="font-size:11px;color:var(--text3)">(선택)</span></label>
+      <input class="form-input" id="f-mapurl" type="text" placeholder="카카오맵에서 공유한 링크를 붙여넣으세요"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">카카오맵 앱 → 장소 → 공유 → 링크 복사</div>
+    </div>
+    <div class="form-group">
       <label class="form-label">등록 닉네임</label>
       <input class="form-input" id="f-nick" readonly/>
       <div class="nick-hint"><strong id="hint-nick"></strong>으로 자동 등록됩니다.</div>
@@ -339,7 +346,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 const API = '/api';
 
 // ── 영등포 타임스퀘어 (정확 좌표) ──
-const HQ = { lat: 37.517254, lng: 126.903373 };
+const HQ = { lat: 37.5179, lng: 126.9026 };
 
 // ── 시드 맛집 (타임스퀘어 건물 내 좌표) ──
 const SEEDS = [
@@ -488,7 +495,7 @@ function normalize(p) {
   return {
     id:p.id||'', name:p.name||'', addr:p.addr||'', addrDetail:p.addrDetail||'',
     cat:p.cat||'기타', stars:p.stars||3, review:p.review||'', nick:p.nick||'익명',
-    lat:p.lat||0, lng:p.lng||0, createdAt:p.createdAt||'', isSeeded:p.isSeeded||false,
+    lat:p.lat||0, lng:p.lng||0, createdAt:p.createdAt||'', isSeeded:p.isSeeded||false, mapUrl:p.mapUrl||'',
   };
 }
 
@@ -600,6 +607,7 @@ function showDetail(p) {
     <span class="dp-cat-badge cat-${p.cat}">${p.cat}</span>
     <div class="dp-name">${p.name}</div>
     <div class="dp-address">📍 ${p.addr}${p.addrDetail?' · '+p.addrDetail:''}</div>
+    ${(p.mapUrl||p.addr)?`<a class="dp-kakao-btn" href="${p.mapUrl||'https://map.kakao.com/link/search/'+encodeURIComponent(p.name+' '+p.addr)}" target="_blank" rel="noopener">🗺 카카오맵에서 보기</a>`:''}
     <div class="dp-star-row">
       <span class="dp-stars">${starStr}</span>
       <span class="dp-star-info">${avg.toFixed(1)}점${count?' ('+count+'명 참여)':''}</span>
@@ -722,7 +730,7 @@ async function removeComment(placeId, commentId) {
 // ── 모달 ──
 function openModal() {
   editingId=null;
-  ['f-name','f-addr','f-addr-detail','f-review'].forEach(id=>document.getElementById(id).value='');
+  ['f-name','f-addr','f-addr-detail','f-review','f-mapurl'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-cat').value='';
   document.getElementById('f-nick').value=myNick;
   document.getElementById('hint-nick').textContent=myNick;
@@ -743,6 +751,7 @@ function openEditModal(id) {
   document.getElementById('f-addr-detail').value=p.addrDetail||'';
   document.getElementById('f-cat').value=p.cat;
   document.getElementById('f-review').value=p.review||'';
+  document.getElementById('f-mapurl').value=p.mapUrl||'';
   document.getElementById('f-nick').value=p.nick;
   document.getElementById('hint-nick').textContent=p.nick;
   document.getElementById('submit-btn').disabled=false;
@@ -795,6 +804,7 @@ function pickAddr(i) {
   const r=document.getElementById('search-results')._data[i];
   document.getElementById('f-addr').value=r.addr;
   if(!document.getElementById('f-name').value) document.getElementById('f-name').value=r.name;
+  if(r.mapUrl) document.getElementById('f-mapurl').value=r.mapUrl;
   pendingCoord={lat:r.lat,lng:r.lng};
   document.getElementById('search-results').classList.remove('open');
   const prev=document.getElementById('coord-preview');
@@ -821,6 +831,7 @@ async function submitPlace() {
     nick:myNick,
     lat:pendingCoord?.lat||0,
     lng:pendingCoord?.lng||0,
+    mapUrl:document.getElementById('f-mapurl').value.trim(),
     isSeeded:false,
   };
   try {
