@@ -289,19 +289,20 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
     <div class="modal-title" id="modal-title">🍽️ 맛집 등록</div>
     <div class="form-group">
       <label class="form-label">음식점 이름 *</label>
-      <input class="form-input" id="f-name" type="text" placeholder="예: 을지로 해장국집" maxlength="30"/>
+      <div style="position:relative">
+        <input class="form-input" id="f-name" type="text"
+          placeholder="이름 입력하면 자동으로 검색돼요" maxlength="30"
+          oninput="onNameInput()" autocomplete="off"/>
+        <div class="search-results" id="search-results" style="position:absolute;width:100%;z-index:100;margin-top:2px"></div>
+      </div>
+      <div class="coord-preview" id="coord-preview" style="margin-top:4px"></div>
     </div>
     <div class="form-group">
-      <label class="form-label">주소 검색</label>
-      <div class="addr-row">
-        <input class="form-input" id="f-addr" type="text" placeholder="음식점명 또는 주소 입력 후 검색"/>
-        <button class="search-btn" onclick="searchAddr()">🔍 검색</button>
-      </div>
-      <div class="search-results" id="search-results"></div>
-      <div class="coord-preview" id="coord-preview"></div>
+      <label class="form-label">주소</label>
+      <input class="form-input" id="f-addr" type="text" placeholder="음식점 선택 시 자동 입력" readonly style="cursor:default;color:var(--text2)"/>
       <input class="form-input" id="f-addr-detail" type="text" placeholder="상세 주소 (선택)" style="margin-top:6px;" maxlength="40"/>
-    <input type="hidden" id="f-mapurl"/>
     </div>
+    <input type="hidden" id="f-mapurl"/>
     <div class="form-group">
       <label class="form-label">카테고리 *</label>
       <select class="form-select" id="f-cat">
@@ -324,11 +325,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
       <label class="form-label">한줄 리뷰</label>
       <textarea class="form-textarea" id="f-review" placeholder="추천 메뉴나 특징을 자유롭게 적어주세요!" maxlength="100"></textarea>
     </div>
-    <div class="form-group">
-      <label class="form-label">카카오맵 링크 <span style="font-size:11px;color:var(--text3)">(선택)</span></label>
-      <input class="form-input" id="f-mapurl" type="text" placeholder="카카오맵에서 공유한 링크를 붙여넣으세요"/>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">카카오맵 앱 → 장소 → 공유 → 링크 복사</div>
-    </div>
+
 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
@@ -728,6 +725,8 @@ async function removeComment(placeId, commentId) {
 function openModal() {
   editingId=null;
   ['f-name','f-addr','f-addr-detail','f-review','f-mapurl'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-addr').setAttribute('readonly','');
+  document.getElementById('search-results').classList.remove('open');
   document.getElementById('search-results').classList.remove('open');
   document.getElementById('f-cat').value='';
 
@@ -743,6 +742,7 @@ function openEditModal(id) {
   const p=places.find(x=>x.id===id);
   if(!p) return;
   editingId=id;
+  document.getElementById('f-addr').removeAttribute('readonly');
   document.getElementById('f-addr').removeAttribute('readonly');
   document.getElementById('f-name').value=p.name;
   document.getElementById('f-addr').value=p.addr;
