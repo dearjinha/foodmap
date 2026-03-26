@@ -138,7 +138,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
 .rate-star { font-size:22px; cursor:pointer; color:var(--surface3); transition:color .1s, transform .1s; line-height:1; }
 .rate-star.lit { color:var(--yellow); }
 .rate-star:hover { transform:scale(1.15); }
-.rate-done { font-size:11px; color:#5cb85c; margin-top:6px; }
+.rate-action { font-size:11px; margin-top:6px; display:flex; align-items:center; gap:4px; }
 
 .dp-actions { display:flex; gap:8px; margin-bottom:10px; }
 .dp-edit { flex:1; padding:8px; background:rgba(63,131,248,.1); border:1px solid rgba(63,131,248,.2); border-radius:var(--radius-sm); color:#4fa3f7; font-size:12px; cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all .15s; }
@@ -364,8 +364,8 @@ let editingId   = null;
 let map         = null;
 let markers     = {};
 let pollTimer   = null;
-// ratings: { placeId: { [nick]: score } }
-let ratings     = JSON.parse(localStorage.getItem('foodmap_ratings') || '{}');
+// ratings: { placeId: [{id, nick, score}] } — 노션 DB에서 로드
+let ratings     = {};
 // comments: { placeId: [{id,nick,text,date}] } — 노션 DB 연동 후 로컬 병행
 let comments    = {};
 
@@ -380,20 +380,40 @@ const api = {
   getComments:  placeId => fetch(`${API}?path=comments&placeId=${encodeURIComponent(placeId)}`).then(r=>r.json()),
   postComment:  body    => fetch(`${API}?path=comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
   delComment:   id      => fetch(`${API}?path=comments&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
+  // 별점 API
+  getRatings:   placeId => fetch(`${API}?path=ratings&placeId=${encodeURIComponent(placeId)}`).then(r=>r.json()),
+  postRating:   body    => fetch(`${API}?path=ratings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
+  delRating:    id      => fetch(`${API}?path=ratings&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
 };
 
-// ── 별점 계산 ──
+// ── 별점 계산 — 등록자 별점 + DB 평가자 별점 평균 ──
 function getAvgStars(placeId, baseStars) {
-  const r = ratings[placeId] || {};
-  const entries = Object.values(r);
-  if (!entries.length) return { avg: baseStars, count: 0 };
-  const total = entries.reduce((s,v) => s+v, 0);
-  return { avg: total / entries.length, count: entries.length };
+  const list = ratings[placeId] || [];
+  if (!list.length) return { avg: baseStars, count: 0 };
+  // 등록자 별점(baseStars) 1표 + 추가 평가들
+  const allScores = [baseStars, ...list.map(r=>r.score)];
+  const total = allScores.reduce((s,v) => s+v, 0);
+  return { avg: total / allScores.length, count: list.length };
 }
 function getMyRating(placeId) {
-  return ratings[placeId]?.[myNick] || 0;
+  const list = ratings[placeId] || [];
+  return list.find(r => r.nick === myNick)?.score || 0;
 }
-function saveRatings() { localStorage.setItem('foodmap_ratings', JSON.stringify(ratings)); }
+function getMyRatingId(placeId) {
+  const list = ratings[placeId] || [];
+  return list.find(r => r.nick === myNick)?.id || null;
+}
+async function cancelRating(placeId) {
+  const rId = getMyRatingId(placeId);
+  if(rId) {
+    try { await api.delRating(rId); } catch {}
+  }
+  if(ratings[placeId]) ratings[placeId] = ratings[placeId].filter(r=>r.nick!==myNick);
+  const p = places.find(x=>x.id===placeId);
+  if(p) showDetail(p);
+  renderList();
+  showToast('별점이 취소됐어요.');
+}
 
 // ── 댓글 수 ──
 function getCommentCount(placeId) { return (comments[placeId] || []).length; }
@@ -475,13 +495,20 @@ async function loadData() {
   }
 }
 
-// ── 댓글 전체 로드 ──
+// ── 댓글 + 별점 전체 로드 ──
 async function loadAllComments() {
   for (const p of places) {
     try {
-      const data = await api.getComments(p.id);
-      if (Array.isArray(data)) comments[p.id] = data;
-    } catch { comments[p.id] = comments[p.id] || []; }
+      const [cData, rData] = await Promise.all([
+        api.getComments(p.id),
+        api.getRatings(p.id),
+      ]);
+      if (Array.isArray(cData)) comments[p.id] = cData;
+      if (Array.isArray(rData)) ratings[p.id]  = rData;
+    } catch {
+      comments[p.id] = comments[p.id] || [];
+      ratings[p.id]  = ratings[p.id]  || [];
+    }
   }
 }
 
@@ -612,11 +639,13 @@ function showDetail(p) {
 
     <!-- 별점 주기 (등록자 외 누구나) -->
     ${!isMine?`<div class="dp-rate-section">
-      <div class="dp-rate-label">${myRate?'내가 준 별점 — 다시 평가하기':'이 식당에 별점을 주세요'}</div>
+      <div class="dp-rate-label">${myRate?'내 별점 (수정 가능)':'이 식당에 별점을 주세요'}</div>
       <div class="dp-rate-stars" id="rate-stars-${p.id}">
-        ${[1,2,3,4,5].map(n=>`<span class="rate-star${myRate>=n?' lit':''}" onclick="giveRating('${p.id}',${n})">${n<=myRate?'★':'☆'}</span>`).join('')}
+        ${[1,2,3,4,5].map(n=>`<span class="rate-star${myRate>=n?' lit':''}" onclick="previewRating('${p.id}',${n})">${n<=myRate?'★':'☆'}</span>`).join('')}
       </div>
-      ${myRate?`<div class="rate-done">✓ ${myRate}점 평가 완료</div>`:''}
+      <div id="rate-action-${p.id}" style="margin-top:6px">
+        ${myRate?`<span style="font-size:11px;color:var(--text3)">✓ ${myRate}점 평가됨 &nbsp;<button onclick="cancelRating('${p.id}')" style="font-size:11px;color:#ff6060;background:none;border:none;cursor:pointer;padding:0">취소</button></span>`:''}
+      </div>
     </div>`:''}
 
     ${isMine?`<div class="dp-actions">
@@ -638,23 +667,51 @@ function showDetail(p) {
   document.getElementById('detail-panel').classList.add('show');
 }
 
-// ── 별점 주기 ──
-function giveRating(placeId, score) {
-  if (!ratings[placeId]) ratings[placeId] = {};
-  ratings[placeId][myNick] = score;
-  saveRatings();
-  // 별 UI 즉시 업데이트
+// ── 별점 주기 (미리보기 → 확인/취소) ──
+let pendingRating = {}; // { placeId: score } 임시 저장
+
+function previewRating(placeId, score) {
+  pendingRating[placeId] = score;
   const starsEl = document.getElementById('rate-stars-'+placeId);
-  if (starsEl) {
-    starsEl.innerHTML = [1,2,3,4,5].map(n=>
-      `<span class="rate-star${score>=n?' lit':''}" onclick="giveRating('${placeId}',${n})">${n<=score?'★':'☆'}</span>`
-    ).join('');
-    const doneEl = starsEl.nextElementSibling;
-    if (doneEl && doneEl.classList.contains('rate-done')) doneEl.textContent = `✓ ${score}점 평가 완료`;
-    else starsEl.insertAdjacentHTML('afterend','<div class="rate-done">✓ '+score+'점 평가 완료</div>');
-  }
-  renderList(); // 목록 별점 평균 업데이트
-  showToast(`⭐ ${score}점 평가 완료!`);
+  if(!starsEl) return;
+  starsEl.innerHTML = [1,2,3,4,5].map(n=>
+    `<span class="rate-star${score>=n?' lit':''}" onclick="previewRating('${placeId}',${n})">${n<=score?'★':'☆'}</span>`
+  ).join('');
+  // 확인/취소 버튼 표시
+  const actionEl = document.getElementById('rate-action-'+placeId);
+  if(actionEl) actionEl.innerHTML = `
+    <span style="font-size:11px;color:var(--text2)">${score}점 — </span>
+    <button onclick="confirmRating('${placeId}')" style="font-size:11px;color:#5cb85c;background:none;border:none;cursor:pointer;padding:0 4px">✓ 저장</button>
+    <button onclick="discardRating('${placeId}')" style="font-size:11px;color:#ff6060;background:none;border:none;cursor:pointer;padding:0 4px">✕ 취소</button>
+    ${getMyRating(placeId)?`<button onclick="cancelRating('${placeId}')" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0 4px">기존 평가 삭제</button>`:''}
+  `;
+}
+
+async function confirmRating(placeId) {
+  const score = pendingRating[placeId];
+  if(!score) return;
+  delete pendingRating[placeId];
+  try {
+    const saved = await api.postRating({ placeId, nick:myNick, score });
+    if(!ratings[placeId]) ratings[placeId] = [];
+    // 기존 내 평가 제거 후 새 것 추가
+    ratings[placeId] = ratings[placeId].filter(r=>r.nick!==myNick);
+    ratings[placeId].push(saved.id ? saved : {id:Date.now().toString(), placeId, nick:myNick, score});
+  } catch(e) { showToast('저장 실패: '+e.message); return; }
+  const p = places.find(x=>x.id===placeId);
+  if(p) showDetail(p);
+  renderList();
+  showToast(`⭐ ${score}점 저장됐어요!`);
+}
+
+function discardRating(placeId) {
+  delete pendingRating[placeId];
+  const p = places.find(x=>x.id===placeId);
+  if(p) showDetail(p);
+}
+
+function giveRating(placeId, score) {
+  previewRating(placeId, score);
 }
 
 function closeDetail() {
