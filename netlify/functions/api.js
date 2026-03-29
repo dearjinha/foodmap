@@ -51,6 +51,9 @@ exports.handler = async (event) => {
     else if (path==='ratings' && method==='GET')    result = await getRatings(q.placeId);
     else if (path==='ratings' && method==='POST')   result = await addRating(JSON.parse(event.body||'{}'));
     else if (path==='ratings' && method==='DELETE') result = await deleteRating(q.id);
+    // ── 전체 댓글/별점 한 번에 조회 ──
+    else if (path==='comments-all') result = await getAllComments();
+    else if (path==='ratings-all')  result = await getAllRatings();
     // ── 검색/geocode (카카오) ──
     else if (path==='search')  result = await kakaoSearch(q.q);
     else if (path==='geocode') result = await kakaoGeocode(q.q);
@@ -188,6 +191,27 @@ function toRating(page) {
   const p = page.properties||{};
   const txt = prop => prop?.rich_text?.[0]?.plain_text||prop?.title?.[0]?.plain_text||'';
   return { id:page.id, placeId:txt(p.PlaceId), nick:txt(p.Nick), score:p.Score?.number||0 };
+}
+
+// ── 전체 댓글 한 번에 조회 ─────────────────────────────────
+async function getAllComments() {
+  const r = await nFetch(`/databases/${commentsDbId()}/query`,'POST',{
+    sorts:[{property:'CreatedAt',direction:'ascending'}],
+    page_size:100,
+  });
+  const d = await r.json();
+  if(!r.ok) return [];
+  return (d.results||[]).map(toComment);
+}
+
+// ── 전체 별점 한 번에 조회 ─────────────────────────────────
+async function getAllRatings() {
+  const r = await nFetch(`/databases/${ratingsDbId()}/query`,'POST',{
+    page_size:100,
+  });
+  const d = await r.json();
+  if(!r.ok) return [];
+  return (d.results||[]).map(toRating);
 }
 
 // ── 카카오 키워드 검색 ────────────────────────────────────
