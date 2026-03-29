@@ -230,7 +230,7 @@ html, body { height:100%; font-family:'Noto Sans KR',sans-serif; background:var(
     <div class="nick-logo">🍽️ 인플루디오 맛집 지도</div>
     <div class="nick-sub">팀원들과 맛집을 공유해요!<br>먼저 사용할 닉네임을 정해주세요.</div>
     <input class="nick-input" id="nick-input" type="text"
-      placeholder="ex) 맛잘알포끼, 미식가팔용이" maxlength="12"
+      placeholder="ex) 밥먹는포끼, 미식가팔용이" maxlength="12"
       onkeydown="if(event.key==='Enter')submitNick()"/>
     <div class="nick-error" id="nick-error"></div>
     <button class="nick-submit" onclick="submitNick()">시작하기 →</button>
@@ -384,6 +384,9 @@ const api = {
   getRatings:   placeId => fetch(`${API}?path=ratings&placeId=${encodeURIComponent(placeId)}`).then(r=>r.json()),
   postRating:   body    => fetch(`${API}?path=ratings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()),
   delRating:    id      => fetch(`${API}?path=ratings&id=${id}`,{method:'DELETE'}).then(r=>r.json()),
+  // 전체 한 번에 조회 (빠른 로드용)
+  getAllComments: () => fetch(`${API}?path=comments-all`).then(r=>r.json()),
+  getAllRatings:  () => fetch(`${API}?path=ratings-all`).then(r=>r.json()),
 };
 
 // ── 별점 계산 — 등록자 별점 + DB 평가자 별점 평균 ──
@@ -393,7 +396,7 @@ function getAvgStars(placeId, baseStars) {
   // 등록자 별점(baseStars) 1표 + 추가 평가들
   const allScores = [baseStars, ...list.map(r=>r.score)];
   const total = allScores.reduce((s,v) => s+v, 0);
-  return { avg: total / allScores.length, count: list.length + 1 };
+  return { avg: total / allScores.length, count: list.length };
 }
 function getMyRating(placeId) {
   const list = ratings[placeId] || [];
@@ -495,20 +498,30 @@ async function loadData() {
   }
 }
 
-// ── 댓글 + 별점 전체 로드 ──
+// ── 댓글 + 별점 전체 로드 (API 2번으로 해결) ──
 async function loadAllComments() {
-  for (const p of places) {
-    try {
-      const [cData, rData] = await Promise.all([
-        api.getComments(p.id),
-        api.getRatings(p.id),
-      ]);
-      if (Array.isArray(cData)) comments[p.id] = cData;
-      if (Array.isArray(rData)) ratings[p.id]  = rData;
-    } catch {
-      comments[p.id] = comments[p.id] || [];
-      ratings[p.id]  = ratings[p.id]  || [];
+  try {
+    const [allComments, allRatings] = await Promise.all([
+      api.getAllComments(),
+      api.getAllRatings(),
+    ]);
+    // placeId 기준으로 그룹핑
+    comments = {};
+    ratings  = {};
+    if (Array.isArray(allComments)) {
+      allComments.forEach(c => {
+        if (!comments[c.placeId]) comments[c.placeId] = [];
+        comments[c.placeId].push(c);
+      });
     }
+    if (Array.isArray(allRatings)) {
+      allRatings.forEach(r => {
+        if (!ratings[r.placeId]) ratings[r.placeId] = [];
+        ratings[r.placeId].push(r);
+      });
+    }
+  } catch(e) {
+    console.warn('댓글/별점 로드 실패:', e.message);
   }
 }
 
