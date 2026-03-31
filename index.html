@@ -256,13 +256,10 @@ html, body {
 .tag-pick-btn { padding:5px 11px; border-radius:20px; font-size:11px; border:1px solid var(--border2); background:var(--surface3); color:var(--text3); cursor:pointer; transition:all .15s; font-family:var(--font-sans); }
 .tag-pick-btn:hover { color:var(--text2); }
 .tag-pick-btn.on { color:#fff !important; }
-.tag-pick-btn[data-tag="임직원할인"].on { background:#92640a; border-color:#fbbf24; color:#fbbf24 !important; }
-.tag-pick-btn[data-tag="주차가능"].on  { background:#1e3a5f; border-color:#60a5fa; color:#60a5fa !important; }
-.tag-pick-btn[data-tag="배달가능"].on  { background:#2d1f5f; border-color:#a78bfa; color:#a78bfa !important; }
+.tag-pick-btn[data-tag="직원할인"].on { background:#92640a; border-color:#fbbf24; color:#fbbf24 !important; }
+.tag-pick-btn[data-tag="회식추천"].on  { background:#4d2107; border-color:#f97316; color:#f97316 !important; }
 .tag-pick-btn[data-tag="단체가능"].on  { background:#0d3d2f; border-color:#34d399; color:#34d399 !important; }
 .tag-pick-btn[data-tag="혼밥가능"].on  { background:#4d1229; border-color:#fb7185; color:#fb7185 !important; }
-.tag-pick-btn[data-tag="야외석"].on    { background:#0d3d2f; border-color:#6ee7b7; color:#6ee7b7 !important; }
-.tag-pick-btn[data-tag="빠른점심"].on  { background:#4d2107; border-color:#f97316; color:#f97316 !important; }
 
 .modal-btns { display:flex; gap:10px; margin-top:20px; }
 .btn-cancel { flex:1; padding:12px; background:var(--surface2); border:1px solid var(--border2); border-radius:var(--radius-sm); color:var(--text2); cursor:pointer; font-size:14px; font-family:var(--font-sans); transition:all .15s; }
@@ -445,13 +442,10 @@ html, body {
     <div class="form-group">
       <label class="form-label">태그 <span style="color:var(--text3);font-size:11px">(복수 선택 가능)</span></label>
       <div class="tag-picker" id="tag-picker">
-        <button class="tag-pick-btn" data-tag="임직원할인" onclick="toggleTag(this)">🏷 임직원 할인</button>
-        <button class="tag-pick-btn" data-tag="주차가능"   onclick="toggleTag(this)">🚗 주차 가능</button>
-        <button class="tag-pick-btn" data-tag="배달가능"   onclick="toggleTag(this)">🛵 배달 가능</button>
+        <button class="tag-pick-btn" data-tag="직원할인" onclick="toggleTag(this)">🏷 직원 할인</button>
+        <button class="tag-pick-btn" data-tag="회식추천" onclick="toggleTag(this)">🍻 회식 추천</button>
         <button class="tag-pick-btn" data-tag="단체가능"   onclick="toggleTag(this)">👥 단체 가능</button>
         <button class="tag-pick-btn" data-tag="혼밥가능"   onclick="toggleTag(this)">🙋 혼밥 가능</button>
-        <button class="tag-pick-btn" data-tag="야외석"     onclick="toggleTag(this)">🌿 야외석</button>
-        <button class="tag-pick-btn" data-tag="빠른점심"   onclick="toggleTag(this)">⚡ 빠른 점심</button>
       </div>
     </div>
     <div class="form-group">
@@ -505,10 +499,10 @@ const HQ = { lat: 37.517254, lng: 126.903373 };
 
 const ALL_CATS = ['한식','분식','고깃집','중식','일식','아시안','양식','멕시칸','샐러드','카페','기타'];
 const TAG_CLASS = {
-  '직원할인':'discount','저녁회식추천':'group','혼밥가능':'solo','단체가능':'group'
+  '직원할인':'discount','회식추천':'group','혼밥가능':'solo','단체가능':'group'
 };
 const TAG_EMOJI = {
-  '직원할인':'🏷','저녁회식추천':'🍻','혼밥가능':'🙋','단체가능':'👥'
+  '직원할인':'🏷','회식추천':'🍻','혼밥가능':'🙋','단체가능':'👥'
 };
 const CAT_COLORS = {
   '한식':'#e85d3c','분식':'#e87c3c','고깃집':'#c0392b',
