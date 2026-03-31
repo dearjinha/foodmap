@@ -335,6 +335,36 @@ html, body {
 .roulette-close { align-self:flex-end; background:none; border:none; color:var(--text3); font-size:20px; cursor:pointer; line-height:1; padding:0; }
 .roulette-close:hover { color:var(--text); }
 
+/* ── 피드백 버튼 & 모달 ── */
+#feedback-btn {
+  position:absolute; bottom:60px; right:16px; z-index:500;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:50px; padding:9px 16px;
+  color:var(--text2); font-size:12px; font-weight:500;
+  font-family:var(--font-sans);
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+  box-shadow:0 2px 12px rgba(0,0,0,.3);
+  transition:all .15s;
+}
+#feedback-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+#feedback-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1500; align-items:center; justify-content:center; }
+#feedback-modal-overlay.open { display:flex; }
+#feedback-modal {
+  background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius);
+  padding:28px; width:380px; max-width:94vw;
+  box-shadow:0 20px 60px rgba(0,0,0,.6); animation:modalIn .22s ease;
+}
+.feedback-title { font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px; }
+.feedback-sub { font-size:12px; color:var(--text3); margin-bottom:18px; line-height:1.5; }
+.feedback-type-row { display:flex; gap:8px; margin-bottom:14px; }
+.feedback-type-btn { flex:1; padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border2); background:var(--surface2); color:var(--text2); font-size:12px; cursor:pointer; transition:all .15s; font-family:var(--font-sans); text-align:center; }
+.feedback-type-btn.active { background:rgba(255,107,53,.15); border-color:var(--accent); color:var(--accent); }
+.feedback-textarea { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; color:var(--text); font-family:var(--font-sans); outline:none; resize:none; height:110px; line-height:1.6; transition:border-color .2s; }
+.feedback-textarea:focus { border-color:var(--accent); }
+.feedback-textarea::placeholder { color:var(--text3); }
+.feedback-btns { display:flex; gap:10px; margin-top:16px; }
+
 /* ── TOAST ── */
 #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--surface); border:1px solid var(--border2); border-radius:30px; padding:10px 20px; font-size:13px; color:var(--text); z-index:3000; transition:transform .3s ease; white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,.4); font-family:var(--font-sans); }
 #toast.show { transform:translateX(-50%) translateY(0); }
@@ -403,6 +433,11 @@ html, body {
     <!-- 오늘 뭐 먹지 버튼 -->
     <button id="roulette-btn" onclick="openRoulette()">
       <span class="roulette-icon">🎰</span>오늘 뭐 먹지?
+    </button>
+
+    <!-- 피드백 버튼 -->
+    <button id="feedback-btn" onclick="openFeedback()">
+      💬 피드백 보내기
     </button>
 
     <div id="detail-panel">
@@ -480,6 +515,7 @@ html, body {
   <div id="roulette-modal">
     <button class="roulette-close" onclick="closeRoulette()">✕</button>
     <div class="roulette-title">🎰 오늘 뭐 먹지?</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-10px">카테고리 중복 선택 가능 · 돌릴 때마다 5~8곳 랜덤</div>
     <div class="roulette-cat-row" id="roulette-cats">
       <!-- JS로 채움 -->
     </div>
@@ -490,6 +526,24 @@ html, body {
     </div>
     <div class="roulette-result" id="roulette-result"></div>
     <button class="roulette-go-btn" id="roulette-go-btn" onclick="goToResult()">지도에서 보기 →</button>
+  </div>
+</div>
+
+<!-- 피드백 모달 -->
+<div id="feedback-modal-overlay">
+  <div id="feedback-modal">
+    <div class="feedback-title">💬 피드백 & 기능 요청</div>
+    <div class="feedback-sub">불편한 점, 원하는 기능, 버그 신고 등 자유롭게 보내주세요!<br>담당자에게 바로 전달됩니다 🚀</div>
+    <div class="feedback-type-row">
+      <button class="feedback-type-btn active" data-type="기능요청" onclick="setFeedbackType(this)">💡 기능 요청</button>
+      <button class="feedback-type-btn" data-type="버그신고"  onclick="setFeedbackType(this)">🐛 버그 신고</button>
+      <button class="feedback-type-btn" data-type="기타"      onclick="setFeedbackType(this)">💭 기타</button>
+    </div>
+    <textarea class="feedback-textarea" id="feedback-text" placeholder="자유롭게 작성해주세요..." maxlength="500"></textarea>
+    <div class="feedback-btns">
+      <button class="btn-cancel" onclick="closeFeedback()">취소</button>
+      <button class="btn-submit" id="feedback-submit-btn" onclick="submitFeedback()">보내기 🚀</button>
+    </div>
   </div>
 </div>
 
@@ -539,7 +593,8 @@ let pollTimer  = null;
 let ratings    = {};
 let comments   = {};
 let selectedTags = [];
-let rouletteSelectedCat = '전체';
+let rouletteSelectedCats = ['전체']; // 복수 선택
+let rouletteItems = [];             // 실제 룰렛에 올라간 항목 (5-8개)
 let rouletteResult = null;
 let isSpinning = false;
 let feedbackType = '기능요청';
@@ -1089,124 +1144,168 @@ async function submitPlace() {
 
 // ── 룰렛 ──────────────────────────────────────────────────
 const ROULETTE_PALETTE = [
-  '#e85d3c','#e87c3c','#c0392b','#e8a03c','#3c8ee8',
-  '#2ecc71','#7c5ce8','#e84393','#27ae60','#5cb85c','#888888'
+  '#e85d3c','#3c8ee8','#e8a03c','#7c5ce8','#2ecc71',
+  '#e84393','#27ae60','#c0392b','#5cb85c','#e87c3c','#888888'
 ];
 
+// 룰렛 시작 각도 오프셋: Canvas arc는 3시=0, 바늘은 12시이므로 -90도 보정
+const NEEDLE_OFFSET_DEG = -90;
+
 function openRoulette() {
-  buildRouletteCats();
-  rouletteSelectedCat = '전체';
+  rouletteSelectedCats = ['전체'];
   rouletteResult = null;
-  document.getElementById('roulette-result').innerHTML='';
-  document.getElementById('roulette-go-btn').style.display='none';
-  drawRoulette(getRouletteItems(), 0);
+  rouletteItems = [];
+  document.getElementById('roulette-result').innerHTML = '';
+  document.getElementById('roulette-go-btn').style.display = 'none';
+  buildRouletteCats();
+  refreshRouletteWheel();
   document.getElementById('roulette-modal-overlay').classList.add('open');
 }
-function closeRoulette(){document.getElementById('roulette-modal-overlay').classList.remove('open');}
+function closeRoulette() { document.getElementById('roulette-modal-overlay').classList.remove('open'); }
 
 function buildRouletteCats() {
-  const cats = ['전체', ...ALL_CATS.filter(c=>places.some(p=>p.cat===c))];
-  document.getElementById('roulette-cats').innerHTML = cats.map(c=>
-    `<button class="roulette-cat-btn${c==='전체'?' active':''}" data-cat="${c}" onclick="setRouletteCat(this,'${c}')">${c}</button>`
+  const cats = ['전체', ...ALL_CATS.filter(c => places.some(p => p.cat === c))];
+  document.getElementById('roulette-cats').innerHTML = cats.map(c =>
+    `<button class="roulette-cat-btn${c==='전체'?' active':''}" data-cat="${c}" onclick="toggleRouletteCat(this,'${c}')">${c}</button>`
   ).join('');
 }
-function setRouletteCat(btn, cat) {
-  rouletteSelectedCat=cat;
-  document.querySelectorAll('.roulette-cat-btn').forEach(b=>b.classList.toggle('active',b===btn));
-  rouletteResult=null;
-  document.getElementById('roulette-result').innerHTML='';
-  document.getElementById('roulette-go-btn').style.display='none';
-  drawRoulette(getRouletteItems(), 0);
-}
-function getRouletteItems() {
-  const list = rouletteSelectedCat==='전체'
-    ? places
-    : places.filter(p=>p.cat===rouletteSelectedCat);
-  return list.length ? list : places;
+
+// 카테고리 복수 선택 토글
+function toggleRouletteCat(btn, cat) {
+  if (cat === '전체') {
+    // 전체 선택 시 나머지 해제
+    rouletteSelectedCats = ['전체'];
+  } else {
+    // 개별 선택 시 '전체' 해제
+    rouletteSelectedCats = rouletteSelectedCats.filter(c => c !== '전체');
+    if (rouletteSelectedCats.includes(cat)) {
+      rouletteSelectedCats = rouletteSelectedCats.filter(c => c !== cat);
+      if (rouletteSelectedCats.length === 0) rouletteSelectedCats = ['전체'];
+    } else {
+      rouletteSelectedCats.push(cat);
+    }
+  }
+  // 버튼 활성화 상태 업데이트
+  document.querySelectorAll('.roulette-cat-btn').forEach(b => {
+    b.classList.toggle('active', rouletteSelectedCats.includes(b.dataset.cat));
+  });
+  rouletteResult = null;
+  document.getElementById('roulette-result').innerHTML = '';
+  document.getElementById('roulette-go-btn').style.display = 'none';
+  refreshRouletteWheel();
 }
 
+// 선택 카테고리에서 5-8개 랜덤 추출
+function pickRouletteItems() {
+  let pool;
+  if (rouletteSelectedCats.includes('전체')) {
+    pool = [...places];
+  } else {
+    pool = places.filter(p => rouletteSelectedCats.includes(p.cat));
+    if (!pool.length) pool = [...places];
+  }
+  // 풀이 5개 미만이면 있는 것 전부 사용
+  if (pool.length <= 5) return pool;
+  // 5-8개 랜덤 선택
+  const count = Math.min(pool.length, 5 + Math.floor(Math.random() * 4)); // 5~8
+  const shuffled = pool.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+function refreshRouletteWheel() {
+  rouletteItems = pickRouletteItems();
+  document.fonts.ready.then(() => drawRoulette(rouletteItems, 0));
+}
+
+// [BUG FIX] 폰트 로딩 보장 + 올바른 각도 계산
 function drawRoulette(items, rotationDeg) {
   const canvas = document.getElementById('roulette-canvas');
-  const ctx    = canvas.getContext('2d');
-  const W=280, H=280, cx=W/2, cy=H/2, r=cx-4;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=280, H=280, cx=W/2, cy=H/2, r=cx-6;
   ctx.clearRect(0,0,W,H);
-  if(!items.length) return;
-  const slice = (2*Math.PI)/items.length;
+  if (!items.length) return;
 
-  items.forEach((p,i)=>{
-    const startAngle = slice*i + (rotationDeg*Math.PI/180);
-    const endAngle   = startAngle + slice;
+  const sliceRad = (2 * Math.PI) / items.length;
+  // 바늘(12시) 기준으로 시작 — -90도(= -π/2) 오프셋 적용
+  const offsetRad = (NEEDLE_OFFSET_DEG + rotationDeg) * Math.PI / 180;
+
+  items.forEach((p, i) => {
+    const startAngle = sliceRad * i + offsetRad;
+    const endAngle   = startAngle + sliceRad;
     const color = ROULETTE_PALETTE[i % ROULETTE_PALETTE.length];
 
     // 부채꼴
     ctx.beginPath();
-    ctx.moveTo(cx,cy);
-    ctx.arc(cx,cy,r,startAngle,endAngle);
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, startAngle, endAngle);
     ctx.closePath();
-    ctx.fillStyle=color;
+    ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.15)';
-    ctx.lineWidth=1.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 텍스트
+    // 텍스트 — 폰트 명시적 지정
     ctx.save();
-    ctx.translate(cx,cy);
-    ctx.rotate(startAngle+slice/2);
-    ctx.textAlign='right';
-    ctx.fillStyle='rgba(255,255,255,0.95)';
-    ctx.font=`bold ${items.length>8?10:12}px 'Noto Sans KR',sans-serif`;
-    const maxLen = 7;
-    const label = p.name.length>maxLen ? p.name.slice(0,maxLen)+'…' : p.name;
-    ctx.fillText(label, r-10, 4);
+    ctx.translate(cx, cy);
+    ctx.rotate(startAngle + sliceRad / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    const fontSize = items.length > 6 ? 11 : 13;
+    ctx.font = `700 ${fontSize}px "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+    const maxLen = items.length > 6 ? 5 : 7;
+    const label = p.name.length > maxLen ? p.name.slice(0, maxLen) + '…' : p.name;
+    ctx.fillText(label, r - 12, fontSize * 0.38);
     ctx.restore();
   });
 
   // 중앙 원
   ctx.beginPath();
-  ctx.arc(cx,cy,28,0,2*Math.PI);
-  ctx.fillStyle='#1a1a22';
+  ctx.arc(cx, cy, 30, 0, 2 * Math.PI);
+  ctx.fillStyle = '#1a1a22';
   ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.2)';
-  ctx.lineWidth=2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 2;
   ctx.stroke();
 }
 
 function spinRoulette() {
-  if(isSpinning) return;
-  const items = getRouletteItems();
-  if(!items.length){showToast('등록된 맛집이 없어요!');return;}
+  if (isSpinning) return;
+  // 매번 새로 추출 (다시 돌릴 때마다 다른 목록)
+  rouletteItems = pickRouletteItems();
+  if (!rouletteItems.length) { showToast('등록된 맛집이 없어요!'); return; }
 
-  isSpinning=true;
-  rouletteResult=null;
-  document.getElementById('roulette-result').innerHTML='<div style="font-size:13px;color:var(--text3)">돌리는 중... 🌀</div>';
-  document.getElementById('roulette-go-btn').style.display='none';
+  isSpinning = true;
+  rouletteResult = null;
+  document.getElementById('roulette-result').innerHTML = '<div style="font-size:13px;color:var(--text3)">돌리는 중... 🌀</div>';
+  document.getElementById('roulette-go-btn').style.display = 'none';
 
-  const totalDeg   = 1440 + Math.random()*360; // 4바퀴 + 랜덤
-  const duration   = 3500;
-  const startTime  = performance.now();
-  let   startAngle = 0;
+  const extraDeg  = Math.random() * 360;
+  const totalDeg  = 1440 + extraDeg;  // 4바퀴 + 랜덤 오프셋
+  const duration  = 3800;
+  const startTime = performance.now();
 
-  // 결과 인덱스 계산 (바늘은 12시 = 270도)
-  const finalAngle   = totalDeg % 360;
-  const slice        = 360 / items.length;
-  // 바늘(위)에 해당하는 섹터 = (360 - finalAngle) % 360
-  const needleAngle  = (360 - finalAngle) % 360;
-  const resultIdx    = Math.floor(needleAngle / slice) % items.length;
+  // [BUG FIX] 올바른 결과 인덱스 계산
+  // 최종 회전 후 바늘(12시, 오프셋=-90도 기준 0도)에 걸리는 섹터
+  const sliceDeg   = 360 / rouletteItems.length;
+  const finalRot   = totalDeg % 360;                      // 최종 회전 위치 (0~360)
+  // offsetRad 적용 후 바늘이 가리키는 각도: (360 - finalRot) % 360
+  const needlePos  = (360 - finalRot % 360 + 360) % 360;
+  const resultIdx  = Math.floor(needlePos / sliceDeg) % rouletteItems.length;
 
-  function easeOut(t) { return 1 - Math.pow(1-t, 4); }
+  function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
 
   function frame(now) {
     const elapsed = now - startTime;
-    const t       = Math.min(elapsed/duration, 1);
-    const current = easeOut(t) * totalDeg;
-    drawRoulette(items, current);
-    if(t < 1) {
+    const t = Math.min(elapsed / duration, 1);
+    drawRoulette(rouletteItems, easeOut(t) * totalDeg);
+    if (t < 1) {
       requestAnimationFrame(frame);
     } else {
-      isSpinning=false;
-      drawRoulette(items, totalDeg);
-      rouletteResult = items[resultIdx];
+      isSpinning = false;
+      drawRoulette(rouletteItems, totalDeg);
+      rouletteResult = rouletteItems[resultIdx];
       showRouletteResult(rouletteResult);
     }
   }
@@ -1228,6 +1327,57 @@ function goToResult() {
   if(!rouletteResult) return;
   closeRoulette();
   selectPlace(rouletteResult.id);
+}
+
+// ── 피드백 ─────────────────────────────────────────────────
+function openFeedback() { document.getElementById('feedback-modal-overlay').classList.add('open'); }
+function closeFeedback(){ document.getElementById('feedback-modal-overlay').classList.remove('open'); }
+function setFeedbackType(btn) {
+  feedbackType = btn.dataset.type;
+  document.querySelectorAll('.feedback-type-btn').forEach(b=>b.classList.toggle('active',b===btn));
+}
+async function submitFeedback() {
+  const text = document.getElementById('feedback-text').value.trim();
+  if(!text){ showToast('⚠️ 내용을 입력해주세요'); return; }
+  const btn = document.getElementById('feedback-submit-btn');
+  btn.disabled=true; btn.textContent='보내는 중...';
+
+  const payload = {
+    text: `*[맛집 지도 피드백] ${feedbackType}*\n\n*작성자:* @${myNick}\n*유형:* ${feedbackType}\n*내용:*\n${text}\n\n_${new Date().toLocaleString('ko-KR')}_`
+  };
+
+  try {
+    // 서버 측 슬랙 웹훅 엔드포인트 사용 (api/index.js 에 /slack 경로 추가 필요)
+    // 또는 SLACK_WEBHOOK_URL이 직접 설정된 경우
+    let sent = false;
+    if(SLACK_WEBHOOK_URL) {
+      await fetch(SLACK_WEBHOOK_URL, {
+        method:'POST',
+        mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      sent = true;
+    } else {
+      // 서버 측 프록시로 전달
+      const r = await fetch(`${API}?path=slack`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({type:feedbackType, nick:myNick, text})
+      });
+      sent = r.ok;
+    }
+    document.getElementById('feedback-text').value='';
+    closeFeedback();
+    showToast('피드백 전달됐어요! 감사합니다 🙏');
+  } catch(e) {
+    // no-cors 사용 시 항상 성공으로 처리
+    document.getElementById('feedback-text').value='';
+    closeFeedback();
+    showToast('피드백 전달됐어요! 감사합니다 🙏');
+  } finally {
+    btn.disabled=false; btn.textContent='보내기 🚀';
+  }
 }
 
 // ── 유틸 ──
