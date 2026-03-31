@@ -274,8 +274,8 @@ function toPlace(page) {
   const txt=prop=>prop?.rich_text?.[0]?.plain_text||prop?.title?.[0]?.plain_text||'';
   const num=prop=>prop?.number??0;
   const sel=prop=>prop?.select?.name||'';
-  const tagsRaw = txt(p.Tags);
-  const tags = tagsRaw ? tagsRaw.split(',').map(t=>t.trim()).filter(Boolean) : [];
+  // Tags: multi_select → name 배열로 추출
+  const tags = (p.Tags?.multi_select||[]).map(t=>t.name);
   return {
     id:page.id, name:txt(p.Name), addr:txt(p.Addr), addrDetail:txt(p.AddrDetail),
     cat:sel(p.Cat), stars:num(p.Stars), review:txt(p.Review), nick:txt(p.Nick),
@@ -299,7 +299,7 @@ function toPlaceProps(p) {
     CreatedAt: {rich_text:[{text:{content:p.createdAt||new Date().toLocaleDateString('ko-KR')}}]},
     IsSeeded:  {checkbox: Boolean(p.isSeeded)},
     MapUrl:    {rich_text:[{text:{content:p.mapUrl||''}}]},
-    Tags:      {rich_text:[{text:{content:Array.isArray(p.tags)?p.tags.join(','):(p.tags||'')}}]},
+    Tags:      {multi_select: (Array.isArray(p.tags) ? p.tags : (p.tags||'').split(',').map(t=>t.trim()).filter(Boolean)).map(name=>({name}))},
   };
 }
 
